@@ -847,6 +847,9 @@ function updateTimeline(hari){
 
   // Update titik desa di peta
   updateDesaMarkers(hari);
+
+  // Update semua panel GEE analisis sesuai tanggal
+  geeAnalysis(hari);
 }
 
 function updateGEEPanel(data, hari){
@@ -1195,19 +1198,43 @@ function cm(){
 }
 
 /* ===== GOOGLE EARTH ENGINE ANALYSIS ===== */
-function geeAnalysis(){
+/* Faktor skala GEE berdasarkan tanggal (0=baseline, 1=puncak hari gempa) */
+function geeScale(hari){
+  if(hari < TL_GEMPA){
+    // Pra-gempa: nilai sangat kecil mendekati baseline
+    return (hari/TL_GEMPA)*0.08;
+  }
+  const dPost = hari - TL_GEMPA;
+  // Pasca-gempa: puncak saat gempa, perlahan pulih
+  return Math.exp(-0.014 * dPost);
+}
+
+function geeAnalysis(hari){
+  hari = (hari===undefined) ? (window._currentHari||75) : hari;
+  window._currentHari = hari;
+  const f = geeScale(hari);     // faktor 0–1 sesuai tanggal
   const r=rng(999);
   const totalRB=DATA.filter(d=>d.kelas_rvs==='RB').length;
-  const avgDCoh=(DATA.reduce((s,d)=>s+d.delta_koh,0)/DATA.length).toFixed(3);
-  const cohArea=(DATA.filter(d=>d.delta_koh>0.3).length*0.16).toFixed(1);
-  const cohAnomaly=DATA.filter(d=>d.delta_koh>0.3).length*8;
-  const oa=78+Math.round(r()*8);
+  // Skala nilai koherensi berdasarkan tanggal
+  const baseAvgDCoh=DATA.reduce((s,d)=>s+d.delta_koh,0)/DATA.length;
+  const avgDCoh=(baseAvgDCoh * f).toFixed(3);
+  const baseCohArea=DATA.filter(d=>d.delta_koh>0.3).length*0.16;
+  const cohArea=(baseCohArea * f).toFixed(1);
+  const cohAnomaly=Math.round(DATA.filter(d=>d.delta_koh>0.3).length * f)*8;
+  const oa=hari<TL_GEMPA ? '—' : (78+Math.round(r()*8))+'%';
+
+  // Label tanggal di header SAR tab
+  const hariLabel = hari<TL_GEMPA ? `Pra-gempa (${TL_GEMPA-hari} hari sebelum)`
+    : hari===TL_GEMPA ? '⚠ Hari Gempa M7,7'
+    : `Pasca-gempa D+${hari-TL_GEMPA}`;
+  const sarHeader = document.querySelector('#gpanel-sar h3');
+  if(sarHeader) sarHeader.textContent = `Distribusi koherensi · ${hariLabel}`;
 
   // SAR tab
   document.getElementById('gee-dcoh').textContent=avgDCoh;
   document.getElementById('gee-luas').textContent=cohArea+' km²';
   document.getElementById('gee-piksel').textContent=cohAnomaly.toLocaleString('id-ID');
-  document.getElementById('gee-oa').textContent=oa+'%';
+  document.getElementById('gee-oa').textContent=oa;
 
   // Coherence histogram
   const bins=10,hist=Array(bins).fill(0);
@@ -1219,13 +1246,14 @@ function geeAnalysis(){
     return `<div class="hist-bar" style="height:${pct}%;background:${col}"><span>${v} titik<br>${lo}–${hi}</span></div>`;
   }).join('');
 
-  // DPM tab
-  const dpmRB=DATA.filter(d=>d.dpm_score>0.65).length;
+  // DPM tab — hanya tersedia pasca-gempa
+  const baseDpmRB=DATA.filter(d=>d.dpm_score>0.65).length;
+  const dpmRB = hari<TL_GEMPA ? 0 : Math.round(baseDpmRB * f);
   const dpmLuas=(dpmRB*0.22).toFixed(1);
-  const dpmPresisi=(68+Math.round(r()*10))+'%';
-  const dpmRecall=(72+Math.round(r()*8))+'%';
-  document.getElementById('dpm-rb').textContent=dpmRB+' unit';
-  document.getElementById('dpm-luas').textContent=dpmLuas+' km²';
+  const dpmPresisi=hari<TL_GEMPA?'—':(68+Math.round(r()*10))+'%';
+  const dpmRecall=hari<TL_GEMPA?'—':(72+Math.round(r()*8))+'%';
+  document.getElementById('dpm-rb').textContent=hari<TL_GEMPA?'Belum tersedia':dpmRB+' unit';
+  document.getElementById('dpm-luas').textContent=hari<TL_GEMPA?'—':dpmLuas+' km²';
   document.getElementById('dpm-presisi').textContent=dpmPresisi;
   document.getElementById('dpm-recall').textContent=dpmRecall;
 
@@ -1253,13 +1281,17 @@ function geeAnalysis(){
   document.getElementById('dpm-chart').innerHTML=dpmHtml;
 
   // NDVI tab
-  const avgDNDVI=(DATA.reduce((s,d)=>s+d.delta_ndvi,0)/DATA.length).toFixed(4);
-  const ndviLuas=(DATA.filter(d=>d.delta_ndvi<-0.1).length*0.09).toFixed(1);
-  const likuluas=(DATA.filter(d=>d.delta_ndvi<-0.08&&d.deform_cm<-5).length*0.12).toFixed(1);
+  const baseAvgDNDVI=DATA.reduce((s,d)=>s+d.delta_ndvi,0)/DATA.length;
+  const avgDNDVI=(baseAvgDNDVI * f).toFixed(4);
+  const ndviLuasBase=DATA.filter(d=>d.delta_ndvi<-0.1).length*0.09;
+  const ndviLuas=(ndviLuasBase*f).toFixed(1);
+  const likuluasBase=DATA.filter(d=>d.delta_ndvi<-0.08&&d.deform_cm<-5).length*0.12;
+  const likuluas=(likuluasBase*f).toFixed(1);
+  const cloudPct = hari<TL_GEMPA?'12%':hari<TL_GEMPA+10?'23%':hari<TL_GEMPA+30?'31%':'18%';
   document.getElementById('ndvi-delta').textContent=avgDNDVI;
   document.getElementById('ndvi-luas').textContent=ndviLuas+' km²';
   document.getElementById('ndvi-likui').textContent=likuluas+' km²';
-  document.getElementById('ndvi-cloud').textContent='23%';
+  document.getElementById('ndvi-cloud').textContent=cloudPct;
 
   // NDVI chart
   const ndviKec={};
@@ -1281,21 +1313,25 @@ function geeAnalysis(){
 
   // Deformasi tab
   const defVals=DATA.map(d=>d.deform_cm);
-  const defMaks=Math.min(...defVals).toFixed(1);
-  const defRata=(defVals.filter(v=>v<-5).reduce((s,v)=>s+v,0)/Math.max(1,defVals.filter(v=>v<-5).length)).toFixed(1);
-  const defLuas=(DATA.filter(d=>Math.abs(d.deform_cm)>5).length*0.14).toFixed(1);
-  document.getElementById('def-maks').textContent=defMaks+' cm';
-  document.getElementById('def-rata').textContent=defRata+' cm';
-  document.getElementById('def-luas').textContent=defLuas+' km²';
+  const baseDefMaks=Math.min(...defVals);
+  const defMaks=(baseDefMaks*f).toFixed(1);
+  const defRataBase=defVals.filter(v=>v<-5).reduce((s,v)=>s+v,0)/Math.max(1,defVals.filter(v=>v<-5).length);
+  const defRata=(defRataBase*f).toFixed(1);
+  const defLuasBase=DATA.filter(d=>Math.abs(d.deform_cm)>5).length*0.14;
+  const defLuas=(defLuasBase*f).toFixed(1);
+  document.getElementById('def-maks').textContent=hari<TL_GEMPA?'—':defMaks+' cm';
+  document.getElementById('def-rata').textContent=hari<TL_GEMPA?'—':defRata+' cm';
+  document.getElementById('def-luas').textContent=hari<TL_GEMPA?'—':defLuas+' km²';
 
   drawDeformCanvas();
 
   // Sidebar GEE stats
   document.getElementById('gee-sidebar-stats').innerHTML=`
-    <div class="prog-row"><span style="width:120px">Koherensi hilang</span><div class="prog-bar-wrap"><div class="prog-fill" style="width:${avgDCoh/0.5*100}%;background:#b3261e"></div></div><b>${(avgDCoh*100).toFixed(0)}%</b></div>
-    <div class="prog-row"><span style="width:120px">DPM High Damage</span><div class="prog-bar-wrap"><div class="prog-fill" style="width:${dpmRB/DATA.length*100}%;background:#e08a00"></div></div><b>${dpmRB}</b></div>
-    <div class="prog-row"><span style="width:120px">ΔNDVI rata-rata</span><div class="prog-bar-wrap"><div class="prog-fill" style="width:${Math.abs(avgDNDVI)*100}%;background:#0d6e3d"></div></div><b>${avgDNDVI}</b></div>
-    <div class="prog-row"><span style="width:120px">Deformasi maks</span><div class="prog-bar-wrap"><div class="prog-fill" style="width:${Math.abs(defMaks)/30*100}%;background:#1d5f8f"></div></div><b>${defMaks} cm</b></div>
+    <div style="font-size:11px;color:var(--mute);margin-bottom:5px;font-style:italic">${hariLabel}</div>
+    <div class="prog-row"><span style="width:120px">Koherensi hilang</span><div class="prog-bar-wrap"><div class="prog-fill" style="width:${Math.min(100,avgDCoh/0.5*100)}%;background:#b3261e"></div></div><b>${(avgDCoh*100).toFixed(0)}%</b></div>
+    <div class="prog-row"><span style="width:120px">DPM High Damage</span><div class="prog-bar-wrap"><div class="prog-fill" style="width:${Math.min(100,dpmRB/DATA.length*100)}%;background:#e08a00"></div></div><b>${dpmRB}</b></div>
+    <div class="prog-row"><span style="width:120px">ΔNDVI rata-rata</span><div class="prog-bar-wrap"><div class="prog-fill" style="width:${Math.min(100,Math.abs(avgDNDVI)*500)}%;background:#0d6e3d"></div></div><b>${avgDNDVI}</b></div>
+    <div class="prog-row"><span style="width:120px">Deformasi maks</span><div class="prog-bar-wrap"><div class="prog-fill" style="width:${Math.min(100,Math.abs(defMaks)/30*100)}%;background:#1d5f8f"></div></div><b>${hari<TL_GEMPA?'—':defMaks+' cm'}</b></div>
     <div style="font-size:11.5px;color:var(--mute);margin-top:6px">Data: Sentinel-1 GRD · Landsat-8/9 L2 · SRTM DEM</div>
   `;
 }
