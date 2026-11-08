@@ -124,7 +124,7 @@ small{color:var(--mute)}
   <details open><summary>Lapisan peta</summary><div>
     <label><input type="checkbox" data-l="bgn" checked> Titik bangunan (RVS)</label>
     <label><input type="checkbox" data-l="adm" checked> Batas administrasi desa</label>
-    <label><input type="checkbox" data-l="kec" checked> Batas kecamatan (simulasi)</label>
+
     <label><input type="checkbox" data-l="rd" checked> Ruas putus & jembatan rusak</label>
     <label><input type="checkbox" data-l="iso" checked> Zona isolasi (buffer 2 km)</label>
     <label><input type="checkbox" data-l="pos" checked> Posko</label>
@@ -513,7 +513,7 @@ function loadBatasAdmin(){
 loadBatasAdmin();
 
 L.marker(EPI,{title:'Episentrum (simulasi)'}).addTo(map).bindPopup('Episentrum M 7,7 (simulasi)');
-KEC.forEach(k=>L.circle(k.c,{radius:9000,color:'#1f5c4d',weight:1.5,dashArray:'5 5',fillOpacity:.03,interactive:false}).bindTooltip(k.n,{permanent:true,direction:'center'}).addTo(LY.kec));
+// Lingkaran kecamatan simulasi dihapus — gunakan batas_admin.geojson yang asli
 RD.forEach(x=>{L.marker(x.ll).bindPopup('<b>'+x.nama+'</b><br>'+x.tipe).addTo(LY.rd);
   L.circle(x.ll,{radius:2000,color:'#7a3b9c',weight:1,fillOpacity:.12,interactive:false}).addTo(LY.iso)});
 POSKO.forEach(p=>L.circleMarker(p.ll,{radius:8,color:'#0a4d8c',fillColor:'#4aa3e8',fillOpacity:1}).bindPopup('<b>'+p.nama+'</b>').addTo(LY.pos));
