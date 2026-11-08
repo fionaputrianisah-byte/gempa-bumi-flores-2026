@@ -135,45 +135,6 @@ input[type=range].tl-slider{width:100%;accent-color:#1d5f8f;cursor:pointer}
 
 <div class="app">
 <aside>
-  <!-- ===== DATE PICKER SIDEBAR ===== -->
-  <div style="background:#1a2535;padding:12px 14px;border-bottom:2px solid #1d5f8f">
-    <div style="color:#a8dfbf;font-size:11px;font-weight:700;letter-spacing:.06em;margin-bottom:8px">🗓 PILIH TANGGAL PEMANTAUAN</div>
-    
-    <!-- Input tanggal langsung -->
-    <input type="date" id="tl-dateinput"
-      min="2026-06-01" max="2026-10-15" value="2026-06-01"
-      style="width:100%;padding:7px 10px;background:#0d1824;border:1px solid #3a4a5c;border-radius:4px;color:#fff;font-size:14px;font-weight:600;margin-bottom:8px;cursor:pointer">
-
-    <!-- Slider -->
-    <input type="range" id="tl-slider" min="0" max="136" value="0" step="1"
-      style="width:100%;accent-color:#1d5f8f;cursor:pointer;margin-bottom:6px">
-    
-    <!-- Label tanggal awal-akhir -->
-    <div style="display:flex;justify-content:space-between;font-size:10px;color:#5a7a90;margin-bottom:8px">
-      <span>1 Jun 2026</span>
-      <span style="color:#b3261e;font-weight:700">▲ 15 Agt</span>
-      <span>15 Okt 2026</span>
-    </div>
-
-    <!-- Status badge -->
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
-      <span id="tl-status-badge" class="tl-status pre" style="font-size:12px">Pra-gempa</span>
-      <span id="tl-hari" style="font-size:11px;color:#8abcd4"></span>
-    </div>
-
-    <!-- Info sensor -->
-    <div id="tl-info" style="padding:5px 8px;border-radius:4px;background:#0d1824;font-size:11.5px;color:#a8c0d4;margin-bottom:8px;line-height:1.4"></div>
-
-    <!-- Tombol cepat -->
-    <div style="display:flex;gap:5px;flex-wrap:wrap">
-      <button class="tl-btn" id="tl-play" style="font-size:11px;padding:4px 10px">▶ Play</button>
-      <button class="tl-btn" onclick="setTLDate(75)" style="font-size:11px;padding:4px 8px">📍 Hari Gempa</button>
-      <button class="tl-btn" onclick="setTLDate(77)" style="font-size:11px;padding:4px 8px">D+2</button>
-      <button class="tl-btn" onclick="setTLDate(87)" style="font-size:11px;padding:4px 8px">D+12</button>
-      <button class="tl-btn" onclick="setTLDate(0)"  style="font-size:11px;padding:4px 8px">↩ Reset</button>
-    </div>
-  </div>
-
   <details open><summary>Saring titik di peta</summary><div>
     <div id="fkelas"></div>
     <select id="fjenis"><option value="">Semua jenis bangunan</option></select>
@@ -217,6 +178,25 @@ input[type=range].tl-slider{width:100%;accent-color:#1d5f8f;cursor:pointer}
 </aside>
 
 <section>
+  <!-- BAR TANGGAL — di atas peta, terpisah dari sidebar -->
+  <div style="background:#1a2535;padding:8px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-bottom:2px solid #1d5f8f">
+    <span style="color:#a8dfbf;font-size:12px;font-weight:700;white-space:nowrap">🗓 Tanggal Pemantauan:</span>
+    <input type="date" id="tl-dateinput" min="2026-06-01" max="2026-10-15" value="2026-08-15"
+      style="padding:5px 10px;background:#0d1824;border:1px solid #3a4a5c;border-radius:4px;color:#fff;font-size:13px;font-weight:600;cursor:pointer">
+    <input type="range" id="tl-slider" min="0" max="136" value="75" step="1"
+      style="flex:1;min-width:120px;accent-color:#e08a00;cursor:pointer">
+    <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+      <span id="tl-status-badge" class="tl-status event" style="font-size:11px">⚠ Hari Gempa</span>
+      <button class="tl-btn" id="tl-play" style="font-size:11px;padding:3px 9px">▶ Play</button>
+      <button class="tl-btn" onclick="setTLDate(0)"  style="font-size:11px;padding:3px 7px">Pra-gempa</button>
+      <button class="tl-btn" onclick="setTLDate(75)" style="font-size:11px;padding:3px 7px">📍 Gempa</button>
+      <button class="tl-btn" onclick="setTLDate(87)" style="font-size:11px;padding:3px 7px">D+12</button>
+      <button class="tl-btn" onclick="setTLDate(120)" style="font-size:11px;padding:3px 7px">D+45</button>
+    </div>
+    <span id="tl-hari" style="font-size:11px;color:#8abcd4;white-space:nowrap"></span>
+  </div>
+  <div id="tl-info" style="background:#0d1824;padding:5px 16px;font-size:11.5px;color:#a8c0d4;border-bottom:1px solid #2a3a4a"></div>
+
   <div id="map"></div>
 
   <!-- Panel analisis standar -->
@@ -994,7 +974,7 @@ document.getElementById('tl-play').onclick=function(){
 };
 
 // Inisialisasi timeline SETELAH refresh (agar panel analisis tidak tertimpa)
-updateTimeline(75); // mulai di hari gempa agar langsung terlihat perubahannya
+// updateTimeline dipanggil setelah refresh() di bawah
 
 L.marker(EPI,{title:'Episentrum (simulasi)'}).addTo(map).bindPopup('Episentrum M 7,7 (simulasi)');
 // Lingkaran kecamatan simulasi dihapus — gunakan batas_admin.geojson yang asli
@@ -1398,6 +1378,8 @@ function refresh(){render();bnpb();perKec();isolasi();moran();cm();geeAnalysis()
 refresh();
 setSumber('[v6+GEE] Sumber: SIMULASI ('+DATA.length+' titik) + Google Earth Engine Sentinel-1/Landsat');
 if(CSV_TEXT.trim())muatCSV(CSV_TEXT,'tertanam');
+// Timeline diinisialisasi TERAKHIR setelah semua data siap
+updateTimeline(75);
 </script>
 </body>
 </html>
