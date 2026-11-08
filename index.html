@@ -132,9 +132,10 @@ small{color:var(--mute)}
       🛰 ANALISIS MELALUI CITRA SATELIT <span class="gee-sidebar-badge">GEE</span>
     </div>
     <label><input type="checkbox" data-l="gee_shk" checked> 🔴 Zona intensitas guncangan (MMI)</label>
-    <label><input type="checkbox" data-l="gee_coh" checked> 🟠 Zona kehilangan koherensi SAR</label>
-    <label><input type="checkbox" data-l="gee_dpm"> 🟣 Zona Damage Proxy Map (DPM)</label>
-    <label><input type="checkbox" data-l="gee_ndvi"> 🟢 Zona perubahan NDVI Landsat</label>
+    <label><input type="checkbox" data-l="gee_coh" checked> 🟠 Perubahan SAR Sentinel-1 (data nyata)</label>
+    <label><input type="checkbox" data-l="gee_dpm" checked> 🟡 Perubahan NDBI Landsat (data nyata)</label>
+    <label><input type="checkbox" data-l="gee_ndvi" checked> 🟢 Perubahan NDVI Landsat (data nyata)</label>
+    <div id="gee-legend"></div>
   </div></details>
 
   <details open><summary>Cari</summary><div>
@@ -501,16 +502,168 @@ function loadBatasAdmin(){
           layer.bindPopup(`<b>Batas Administrasi Desa</b><br>${nama}`);
         }
       }).addTo(LY.adm);
-      console.log('Batas admin loaded:', data.features.length, 'fitur');
     })
     .catch(e=>{
-      console.warn('Gagal memuat batas_admin.geojson:', e);
-      // Fallback: tampilkan pesan di sidebar
       const el=document.querySelector('[data-l="adm"]');
-      if(el){el.parentElement.insertAdjacentHTML('afterend','<small style="color:#b3261e;padding:0 8px">⚠ batas_admin.geojson belum diupload ke repo</small>')}
+      if(el)el.parentElement.insertAdjacentHTML('afterend','<small style="color:#b3261e;padding:0 8px">⚠ batas_admin.geojson belum diupload</small>');
     });
 }
 loadBatasAdmin();
+
+/* ===== Load GEE Stats GeoJSON (data nyata Sentinel-1 + Landsat) ===== */
+function colorS1(v){
+  if(v===null||v===undefined)return'#aaa';
+  if(v<-3)return'#08306b';   // penurunan tajam (biru tua)
+  if(v<-1)return'#2171b5';   // penurunan sedang (biru)
+  if(v< 1)return'#9ecae1';   // netral (biru muda)
+  if(v< 3)return'#fc8d59';   // kenaikan sedang (oranye)
+  return'#b30000';            // kenaikan tajam (merah)
+}
+function colorNDBI(v){
+  if(v===null||v===undefined)return'#aaa';
+  if(v< 0)   return'#1a9850'; // turun (hijau - vegetasi/air)
+  if(v< 0.05)return'#fee08b'; // netral (kuning)
+  if(v< 0.12)return'#f46d43'; // naik sedang (oranye)
+  return'#a50026';             // naik tinggi (merah - potensi kerusakan)
+}
+function colorNDVI(v){
+  if(v===null||v===undefined)return'#aaa';
+  if(v< -0.1) return'#b30000'; // turun drastis (merah - vegetasi hilang)
+  if(v< -0.03)return'#fc8d59'; // turun sedang (oranye)
+  if(v<  0.03)return'#fee08b'; // netral (kuning)
+  return'#1a9850';              // naik (hijau - vegetasi tumbuh)
+}
+
+function interpretS1(v){
+  if(v===null)return'Tidak ada data';
+  if(v<-3)return'Penurunan backscatter sangat signifikan — kemungkinan kerusakan permukaan atau perubahan tutupan lahan besar';
+  if(v<-1)return'Penurunan backscatter sedang — ada perubahan pada permukaan, perlu verifikasi';
+  if(v< 1)return'Tidak ada perubahan signifikan pada permukaan';
+  if(v< 3)return'Kenaikan backscatter sedang — mungkin akibat debris/reruntuhan atau perubahan kelembaban tanah';
+  return'Kenaikan backscatter sangat signifikan — kemungkinan akumulasi material di permukaan';
+}
+function interpretNDBI(v){
+  if(v===null)return'Tidak ada data';
+  if(v< 0)   return'Indeks lahan terbangun menurun — kemungkinan ada peningkatan vegetasi atau air';
+  if(v< 0.05)return'Perubahan NDBI minimal, kondisi lahan relatif stabil';
+  if(v< 0.12)return'Peningkatan NDBI sedang — potensi perluasan lahan terbuka atau puing bangunan';
+  return'Peningkatan NDBI tinggi — indikasi kerusakan bangunan signifikan atau penambahan lahan terbuka';
+}
+function interpretNDVI(v){
+  if(v===null)return'Tidak ada data';
+  if(v< -0.1) return'Penurunan vegetasi drastis — kemungkinan longsor, likuifaksi, atau penggundulan lahan';
+  if(v< -0.03)return'Penurunan vegetasi sedang — gangguan tutupan lahan, perlu verifikasi lapangan';
+  if(v<  0.03)return'Tidak ada perubahan vegetasi yang signifikan';
+  return'Peningkatan vegetasi — tutupan lahan membaik atau musim hujan';
+}
+
+function loadGEEStats(){
+  fetch('gee_stats.geojson')
+    .then(r=>r.json())
+    .then(data=>{
+      // Layer S1 change
+      L.geoJSON(data,{
+        style:f=>{const v=f.properties.s1;return{color:colorS1(v),weight:2.2,opacity:0.85}},
+        onEachFeature:(f,layer)=>{
+          const p=f.properties, v=p.s1;
+          layer.bindTooltip(`SAR: ${v!=null?v.toFixed(2)+' dB':'N/A'}`,{sticky:true});
+          layer.bindPopup(`<div style="font-size:13px;max-width:280px">
+            <b style="font-size:14px">📡 Perubahan SAR Sentinel-1</b><hr style="margin:4px 0">
+            <table style="width:100%;font-size:12px">
+              <tr><td style="color:#666">Nilai mean (dB)</td><td><b>${v!=null?v.toFixed(3):'N/A'}</b></td></tr>
+              <tr><td style="color:#666">Rentang data</td><td>-6.5 s/d +4.2 dB</td></tr>
+              <tr><td style="color:#666">Sensor</td><td>Sentinel-1 C-band IW/VV</td></tr>
+              <tr><td style="color:#666">Periode</td><td>Jun–Agt 2026 vs Agt–Okt 2026</td></tr>
+            </table>
+            <div style="margin-top:6px;padding:6px;background:#f5f5f5;border-radius:4px;font-size:12px">
+              <b>Interpretasi:</b><br>${interpretS1(v)}
+            </div>
+            <div style="margin-top:4px;padding:6px;background:#fff8e1;border-radius:4px;font-size:11px">
+              ⚠ Nilai ini adalah statistik per segmen batas administrasi dari data SAR nyata, bukan persentase kerusakan bangunan terverifikasi.
+            </div>
+          </div>`,{maxWidth:300});
+        }
+      }).addTo(LY.gee_coh);
+
+      // Layer dNDBI
+      L.geoJSON(data,{
+        style:f=>{const v=f.properties.ndbi;return{color:colorNDBI(v),weight:2.2,opacity:0.85}},
+        onEachFeature:(f,layer)=>{
+          const p=f.properties, v=p.ndbi;
+          layer.bindTooltip(`NDBI: ${v!=null?v.toFixed(3):'N/A'}`,{sticky:true});
+          layer.bindPopup(`<div style="font-size:13px;max-width:280px">
+            <b style="font-size:14px">🏗 Perubahan NDBI (Landsat 8/9)</b><hr style="margin:4px 0">
+            <table style="width:100%;font-size:12px">
+              <tr><td style="color:#666">Nilai mean dNDBI</td><td><b>${v!=null?v.toFixed(4):'N/A'}</b></td></tr>
+              <tr><td style="color:#666">Rentang data</td><td>-0.19 s/d +0.31</td></tr>
+              <tr><td style="color:#666">Band</td><td>SWIR1 (B6) & NIR (B5)</td></tr>
+              <tr><td style="color:#666">Resolusi</td><td>30 m</td></tr>
+            </table>
+            <div style="margin-top:6px;padding:6px;background:#f5f5f5;border-radius:4px;font-size:12px">
+              <b>Interpretasi:</b><br>${interpretNDBI(v)}
+            </div>
+            <div style="margin-top:4px;padding:6px;background:#fff8e1;border-radius:4px;font-size:11px">
+              ⚠ NDBI positif tinggi berpotensi mengindikasikan kerusakan, namun perlu verifikasi lapangan.
+            </div>
+          </div>`,{maxWidth:300});
+        }
+      }).addTo(LY.gee_dpm);
+
+      // Layer dNDVI
+      L.geoJSON(data,{
+        style:f=>{const v=f.properties.ndvi;return{color:colorNDVI(v),weight:2.2,opacity:0.85}},
+        onEachFeature:(f,layer)=>{
+          const p=f.properties, v=p.ndvi;
+          layer.bindTooltip(`NDVI: ${v!=null?v.toFixed(3):'N/A'}`,{sticky:true});
+          layer.bindPopup(`<div style="font-size:13px;max-width:280px">
+            <b style="font-size:14px">🌿 Perubahan NDVI (Landsat 8/9)</b><hr style="margin:4px 0">
+            <table style="width:100%;font-size:12px">
+              <tr><td style="color:#666">Nilai mean dNDVI</td><td><b>${v!=null?v.toFixed(4):'N/A'}</b></td></tr>
+              <tr><td style="color:#666">Rentang data</td><td>-0.24 s/d +0.96</td></tr>
+              <tr><td style="color:#666">Band</td><td>NIR (B5) & Red (B4)</td></tr>
+              <tr><td style="color:#666">Resolusi</td><td>30 m</td></tr>
+            </table>
+            <div style="margin-top:6px;padding:6px;background:#f5f5f5;border-radius:4px;font-size:12px">
+              <b>Interpretasi:</b><br>${interpretNDVI(v)}
+            </div>
+            <div style="margin-top:4px;padding:6px;background:#fff8e1;border-radius:4px;font-size:11px">
+              ⚠ NDVI negatif menunjukkan penurunan vegetasi — bisa akibat gempa, kemarau, atau aktivitas lain.
+            </div>
+          </div>`,{maxWidth:300});
+        }
+      }).addTo(LY.gee_ndvi);
+
+      // Tambahkan legenda mini di bawah checkbox
+      addGEELegend();
+      console.log('GEE stats loaded:', data.features.length, 'fitur');
+    })
+    .catch(e=>console.warn('gee_stats.geojson belum ada:', e));
+}
+
+function addGEELegend(){
+  const el = document.getElementById('gee-legend');
+  if(!el) return;
+  el.innerHTML = `
+    <div style="font-size:11.5px;margin-top:6px">
+      <b style="font-size:12px">🟠 SAR Sentinel-1 (dB)</b><br>
+      <span style="color:#08306b">■</span> &lt; -3 &nbsp;
+      <span style="color:#2171b5">■</span> -3 s/d -1 &nbsp;
+      <span style="color:#9ecae1">■</span> netral &nbsp;
+      <span style="color:#fc8d59">■</span> +1 s/d +3 &nbsp;
+      <span style="color:#b30000">■</span> &gt; +3<br>
+      <b style="font-size:12px;margin-top:4px;display:block">🟡 NDBI Landsat</b>
+      <span style="color:#1a9850">■</span> turun &nbsp;
+      <span style="color:#fee08b">■</span> netral &nbsp;
+      <span style="color:#f46d43">■</span> naik sed. &nbsp;
+      <span style="color:#a50026">■</span> naik tinggi<br>
+      <b style="font-size:12px;margin-top:4px;display:block">🟢 NDVI Landsat</b>
+      <span style="color:#b30000">■</span> turun drastis &nbsp;
+      <span style="color:#fc8d59">■</span> turun &nbsp;
+      <span style="color:#fee08b">■</span> netral &nbsp;
+      <span style="color:#1a9850">■</span> naik
+    </div>`;
+}
+loadGEEStats();
 
 L.marker(EPI,{title:'Episentrum (simulasi)'}).addTo(map).bindPopup('Episentrum M 7,7 (simulasi)');
 // Lingkaran kecamatan simulasi dihapus — gunakan batas_admin.geojson yang asli
