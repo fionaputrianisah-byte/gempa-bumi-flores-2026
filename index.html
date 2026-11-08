@@ -51,6 +51,25 @@ th{background:#eef0f3;font-weight:600}
 .big{font-size:24px;font-weight:700}
 small{color:var(--mute)}
 
+/* ── Timeline Tanggal ── */
+.timeline-wrap{background:#1a2535;padding:14px 20px;border-bottom:1px solid var(--line)}
+.timeline-wrap h3{color:#fff;margin:0 0 10px;font-size:13px;font-weight:600}
+.timeline-bar{position:relative;height:36px;margin:0 0 8px}
+.tl-track{position:absolute;top:50%;left:0;right:0;height:4px;background:#3a4a5c;border-radius:2px;transform:translateY(-50%)}
+.tl-fill{position:absolute;top:0;left:0;height:100%;background:linear-gradient(90deg,#2f8f5b,#e08a00,#b3261e);border-radius:2px;transition:width .3s}
+.tl-thumb{position:absolute;top:50%;width:18px;height:18px;background:#fff;border-radius:50%;transform:translate(-50%,-50%);cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.4);transition:left .3s}
+.tl-event{position:absolute;top:50%;transform:translate(-50%,-50%);width:10px;height:10px;border-radius:50%;background:#b3261e;border:2px solid #fff;cursor:default}
+.tl-labels{display:flex;justify-content:space-between;font-size:10px;color:#8a9ab0;margin-bottom:6px}
+.tl-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tl-date-box{background:#0d1824;border:1px solid #3a4a5c;border-radius:4px;padding:4px 10px;color:#fff;font-size:13px;font-weight:600;min-width:110px;text-align:center}
+.tl-btn{background:transparent;border:1px solid #4a6070;border-radius:4px;color:#8abcd4;padding:4px 10px;font-size:12px;cursor:pointer;transition:.15s}
+.tl-btn:hover,.tl-btn.active{background:#1d5f8f;color:#fff;border-color:#1d5f8f}
+.tl-status{font-size:11.5px;padding:3px 8px;border-radius:10px;font-weight:600}
+.tl-status.pre{background:#1a3a2a;color:#2f8f5b}
+.tl-status.event{background:#3a1a1a;color:#b3261e}
+.tl-status.post{background:#3a2a0a;color:#e08a00}
+input[type=range].tl-slider{width:100%;accent-color:#1d5f8f;cursor:pointer}
+
 /* ── GEE Panel ── */
 .gee-header{background:linear-gradient(135deg,#0d6e3d,#1d5f8f);color:#fff;padding:14px 20px;border-bottom:1px solid var(--line)}
 .gee-header h2{color:#fff;font-size:15px;margin:0 0 4px}
@@ -116,6 +135,45 @@ small{color:var(--mute)}
 
 <div class="app">
 <aside>
+  <!-- ===== DATE PICKER SIDEBAR ===== -->
+  <div style="background:#1a2535;padding:12px 14px;border-bottom:2px solid #1d5f8f">
+    <div style="color:#a8dfbf;font-size:11px;font-weight:700;letter-spacing:.06em;margin-bottom:8px">🗓 PILIH TANGGAL PEMANTAUAN</div>
+    
+    <!-- Input tanggal langsung -->
+    <input type="date" id="tl-dateinput"
+      min="2026-06-01" max="2026-10-15" value="2026-06-01"
+      style="width:100%;padding:7px 10px;background:#0d1824;border:1px solid #3a4a5c;border-radius:4px;color:#fff;font-size:14px;font-weight:600;margin-bottom:8px;cursor:pointer">
+
+    <!-- Slider -->
+    <input type="range" id="tl-slider" min="0" max="136" value="0" step="1"
+      style="width:100%;accent-color:#1d5f8f;cursor:pointer;margin-bottom:6px">
+    
+    <!-- Label tanggal awal-akhir -->
+    <div style="display:flex;justify-content:space-between;font-size:10px;color:#5a7a90;margin-bottom:8px">
+      <span>1 Jun 2026</span>
+      <span style="color:#b3261e;font-weight:700">▲ 15 Agt</span>
+      <span>15 Okt 2026</span>
+    </div>
+
+    <!-- Status badge -->
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+      <span id="tl-status-badge" class="tl-status pre" style="font-size:12px">Pra-gempa</span>
+      <span id="tl-hari" style="font-size:11px;color:#8abcd4"></span>
+    </div>
+
+    <!-- Info sensor -->
+    <div id="tl-info" style="padding:5px 8px;border-radius:4px;background:#0d1824;font-size:11.5px;color:#a8c0d4;margin-bottom:8px;line-height:1.4"></div>
+
+    <!-- Tombol cepat -->
+    <div style="display:flex;gap:5px;flex-wrap:wrap">
+      <button class="tl-btn" id="tl-play" style="font-size:11px;padding:4px 10px">▶ Play</button>
+      <button class="tl-btn" onclick="setTLDate(75)" style="font-size:11px;padding:4px 8px">📍 Hari Gempa</button>
+      <button class="tl-btn" onclick="setTLDate(77)" style="font-size:11px;padding:4px 8px">D+2</button>
+      <button class="tl-btn" onclick="setTLDate(87)" style="font-size:11px;padding:4px 8px">D+12</button>
+      <button class="tl-btn" onclick="setTLDate(0)"  style="font-size:11px;padding:4px 8px">↩ Reset</button>
+    </div>
+  </div>
+
   <details open><summary>Saring titik di peta</summary><div>
     <div id="fkelas"></div>
     <select id="fjenis"><option value="">Semua jenis bangunan</option></select>
@@ -709,6 +767,217 @@ function renderDesaGEELayer(){
   });
 }
 loadDesaGEE();
+
+/* ===== TIMELINE PEMANTAUAN ===== */
+// Periode: 1 Jun 2026 (hari 0) → 15 Okt 2026 (hari 136)
+// Gempa: 15 Agt 2026 = hari ke-75
+const TL_START   = new Date('2026-06-01');
+const TL_GEMPA   = 75;  // hari ke-75 dari 1 Jun
+const TL_TOTAL   = 136; // 1 Jun → 15 Okt
+
+// Pasangan citra Sentinel-1 & Landsat yang tersedia (simulasi)
+const TL_SCENES = [
+  {hari:0,  tgl:'01 Jun 2026', sensor:'Sentinel-1', note:'Baseline pra-gempa — kondisi normal'},
+  {hari:12, tgl:'13 Jun 2026', sensor:'Sentinel-1', note:'Pra-gempa — tidak ada anomali terdeteksi'},
+  {hari:24, tgl:'25 Jun 2026', sensor:'Landsat-9',  note:'NDVI normal, tutupan vegetasi baik'},
+  {hari:36, tgl:'07 Jul 2026', sensor:'Sentinel-1', note:'Pra-gempa — koherensi tinggi di seluruh wilayah'},
+  {hari:48, tgl:'19 Jul 2026', sensor:'Landsat-8',  note:'NDBI baseline — tidak ada perubahan lahan'},
+  {hari:60, tgl:'31 Jul 2026', sensor:'Sentinel-1', note:'7 hari sebelum gempa — semua indikator normal'},
+  {hari:68, tgl:'08 Agt 2026', sensor:'Landsat-9',  note:'1 minggu pra-gempa — citra terakhir bebas awan'},
+  {hari:75, tgl:'15 Agt 2026', sensor:'BMKG/USGS',  note:'⚠ GEMPA M7,7 — 05:58 WITA — kedalaman 15 km'},
+  {hari:77, tgl:'17 Agt 2026', sensor:'Sentinel-1', note:'D+2 — perubahan koherensi mulai terdeteksi'},
+  {hari:81, tgl:'21 Agt 2026', sensor:'Landsat-9',  note:'D+6 — ΔNDVI negatif di area terdampak'},
+  {hari:87, tgl:'27 Agt 2026', sensor:'Sentinel-1', note:'D+12 — Damage Proxy Map dihasilkan'},
+  {hari:96, tgl:'05 Sep 2026', sensor:'Landsat-8',  note:'D+21 — NDBI menunjukkan perubahan lahan terbangun'},
+  {hari:106,tgl:'15 Sep 2026', sensor:'Sentinel-1', note:'D+31 — koherensi mulai pulih di sebagian wilayah'},
+  {hari:120,tgl:'29 Sep 2026', sensor:'Landsat-9',  note:'D+45 — vegetasi mulai tumbuh kembali'},
+  {hari:136,tgl:'15 Okt 2026', sensor:'Sentinel-1', note:'D+61 — akhir periode pemantauan awal'},
+];
+
+// Interpolasi nilai GEE berdasarkan hari
+function interpGEE(hari, baseVal, peakVal, recoveryRate=0.015){
+  if(hari < TL_GEMPA) {
+    // Pra-gempa: nilai baseline (mendekati nol)
+    const frac = hari / TL_GEMPA;
+    return baseVal * frac * 0.3; // sedikit variasi natural
+  }
+  const dPost = hari - TL_GEMPA;
+  // Pasca-gempa: langsung berubah, lalu perlahan recovery
+  const peak = peakVal;
+  const recovered = peak * Math.exp(-recoveryRate * dPost);
+  return recovered;
+}
+
+// Update tampilan berdasarkan hari terpilih
+function updateTimeline(hari){
+  const d = new Date(TL_START);
+  d.setDate(d.getDate() + hari);
+  const tglStr = d.toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'});
+
+  // Update label tanggal
+  document.getElementById('tl-date').textContent = tglStr;
+
+  // Status badge
+  const badge = document.getElementById('tl-status-badge');
+  const hariEl = document.getElementById('tl-hari');
+  if(hari < TL_GEMPA){
+    badge.className='tl-status pre'; badge.textContent='Pra-gempa';
+    hariEl.textContent = `${TL_GEMPA-hari} hari sebelum gempa`;
+  } else if(hari === TL_GEMPA){
+    badge.className='tl-status event'; badge.textContent='⚠ HARI GEMPA';
+    hariEl.textContent = 'M7,7 — 05:58 WITA';
+  } else {
+    badge.className='tl-status post'; badge.textContent='Pasca-gempa';
+    hariEl.textContent = `D+${hari-TL_GEMPA} sejak gempa`;
+  }
+
+  // Cari scene terdekat
+  const scene = TL_SCENES.reduce((a,b)=>Math.abs(b.hari-hari)<Math.abs(a.hari-hari)?b:a);
+  document.getElementById('tl-info').innerHTML =
+    `<b>🛰 ${scene.sensor}</b> · ${scene.tgl} &nbsp;|&nbsp; ${scene.note}`;
+
+  // Hitung nilai GEE untuk hari ini per kecamatan
+  const GEE_NOW = GEE_KEC.map(k=>({
+    kec:  k.kec,
+    s1:   parseFloat(interpGEE(hari, 0,          k.s1,   0.018).toFixed(3)),
+    ndbi: parseFloat(interpGEE(hari, 0.02,       k.ndbi, 0.012).toFixed(4)),
+    ndvi: parseFloat(interpGEE(hari, -0.01,      k.ndvi, 0.014).toFixed(4)),
+    n:    k.n
+  }));
+
+  // Update panel kecamatan
+  updateGEEPanel(GEE_NOW, hari);
+
+  // Update titik desa di peta
+  updateDesaMarkers(hari);
+}
+
+function updateGEEPanel(data, hari){
+  const el = document.getElementById('gee-panel');
+  if(!el) return;
+  const cs1   = v=>v<-0.5?'#b3261e':v<-0.3?'#e08a00':v<-0.1?'#e6c200':'#2f8f5b';
+  const cNDBI = v=>v>0.10?'#b3261e':v>0.07?'#e08a00':v>0.04?'#e6c200':'#2f8f5b';
+  const cNDVI = v=>v<-0.08?'#b3261e':v<-0.05?'#e08a00':v<-0.02?'#e6c200':'#2f8f5b';
+  const maxS1=Math.max(...data.map(d=>Math.abs(d.s1)));
+  const maxNDBI=Math.max(...data.map(d=>d.ndbi));
+  const maxNDVI=Math.max(...data.map(d=>Math.abs(d.ndvi)));
+  function bar(val,max,color){
+    const pct=Math.min(100,Math.abs(val)/max*100).toFixed(0);
+    return `<div style="display:flex;align-items:center;gap:5px"><div style="width:70px;height:8px;background:#eee;border-radius:3px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${color};border-radius:3px"></div></div><span style="font-size:11px;color:${color};font-weight:600">${val}</span></div>`;
+  }
+  const dPost = hari>=TL_GEMPA ? hari-TL_GEMPA : null;
+  const judulPeriode = hari<TL_GEMPA ? `Pra-gempa (${TL_GEMPA-hari} hari sebelum)` : hari===TL_GEMPA ? 'Hari gempa M7,7' : `Pasca-gempa D+${dPost}`;
+
+  let html=`<div style="font-size:12px;color:var(--mute);margin-bottom:8px">
+    🛰 <b>${judulPeriode}</b> · Sentinel-1 C-band & Landsat 8/9 · per kecamatan (data GEE)
+  </div><div style="overflow-x:auto"><table style="width:100%;font-size:12.5px;border-collapse:collapse">
+    <thead><tr style="background:#eef0f3">
+      <th style="text-align:left;padding:6px 8px">Kecamatan</th>
+      <th style="padding:6px 8px">📡 SAR ΔdB</th>
+      <th style="padding:6px 8px">🏗 ΔNDBI</th>
+      <th style="padding:6px 8px">🌿 ΔNDVI</th>
+      <th style="padding:6px 8px">Status</th>
+    </tr></thead><tbody>`;
+
+  data.forEach(d=>{
+    const skor=(Math.abs(d.s1)>0.4?1:0)+(d.ndbi>0.09?1:0)+(Math.abs(d.ndvi)>0.07?1:0);
+    const status=skor>=2?'<span style="background:#b3261e;color:#fff;padding:1px 7px;border-radius:8px;font-size:11px">Perlu perhatian</span>':
+                 skor===1?'<span style="background:#e08a00;color:#fff;padding:1px 7px;border-radius:8px;font-size:11px">Pantau</span>':
+                          '<span style="background:#2f8f5b;color:#fff;padding:1px 7px;border-radius:8px;font-size:11px">Stabil</span>';
+    html+=`<tr style="border-bottom:1px solid var(--line)">
+      <td style="padding:6px 8px;font-weight:600">${d.kec}</td>
+      <td style="padding:6px 8px">${bar(d.s1,maxS1,cs1(d.s1))}</td>
+      <td style="padding:6px 8px">${bar(d.ndbi,maxNDBI,cNDBI(d.ndbi))}</td>
+      <td style="padding:6px 8px">${bar(d.ndvi,maxNDVI,cNDVI(d.ndvi))}</td>
+      <td style="padding:6px 8px">${status}</td>
+    </tr>`;
+  });
+  html+=`</tbody></table></div>
+  <div style="margin-top:8px;padding:6px 8px;background:#fff8e1;border-radius:4px;font-size:11.5px;color:var(--mute)">
+    ⚠ Nilai ini adalah indikator perubahan citra per tanggal — simulasi interpolasi dari data GEE nyata (${TL_GEMPA>=TL_GEMPA?'pasca':'pra'}-gempa). Bukan persentase kerusakan terverifikasi.
+  </div>`;
+  el.innerHTML = html;
+}
+
+function updateDesaMarkers(hari){
+  if(!window.GEE_DESA) return;
+  LY.gee_coh.clearLayers();
+  LY.gee_dpm.clearLayers();
+  LY.gee_ndvi.clearLayers();
+  window.GEE_DESA.forEach(d=>{
+    const s1now   = parseFloat(interpGEE(hari, 0,     d.s1||0,   0.018).toFixed(3));
+    const ndbinow = parseFloat(interpGEE(hari, 0.02,  d.ndbi||0, 0.012).toFixed(4));
+    const ndvinow = parseFloat(interpGEE(hari, -0.01, d.ndvi||0, 0.014).toFixed(4));
+    const dPost = hari>=TL_GEMPA?`D+${hari-TL_GEMPA}`:'Pra-gempa';
+    L.circleMarker([d.lat,d.lon],{radius:5,color:'#fff',weight:0.5,fillColor:colorS1(s1now),fillOpacity:0.85})
+      .bindTooltip(`<b>${d.desa}</b> (${d.kec})<br>SAR: ${s1now} dB · ${dPost}`,{sticky:true})
+      .bindPopup(`<div style="font-size:13px;min-width:220px"><b>${d.desa}</b> · ${d.kec}<br>
+        <small style="color:#888">${dPost} dari gempa</small><hr style="margin:4px 0">
+        <b style="color:${colorS1(s1now)}">SAR: ${s1now} dB</b><br>
+        <span style="font-size:11px">${interpretS1(s1now)}</span></div>`)
+      .addTo(LY.gee_coh);
+    L.circleMarker([d.lat,d.lon],{radius:5,color:'#fff',weight:0.5,fillColor:colorNDBI(ndbinow),fillOpacity:0.85})
+      .bindTooltip(`<b>${d.desa}</b><br>NDBI: ${ndbinow} · ${dPost}`,{sticky:true})
+      .addTo(LY.gee_dpm);
+    L.circleMarker([d.lat,d.lon],{radius:5,color:'#fff',weight:0.5,fillColor:colorNDVI(ndvinow),fillOpacity:0.85})
+      .bindTooltip(`<b>${d.desa}</b><br>NDVI: ${ndvinow} · ${dPost}`,{sticky:true})
+      .addTo(LY.gee_ndvi);
+  });
+}
+
+// Konversi tanggal ↔ hari
+function dateToHari(dateStr){
+  const d=new Date(dateStr), s=new Date('2026-06-01');
+  return Math.round((d-s)/(1000*60*60*24));
+}
+function hariToDateStr(hari){
+  const d=new Date('2026-06-01');
+  d.setDate(d.getDate()+hari);
+  return d.toISOString().slice(0,10);
+}
+
+// Slider → update semua
+const tlSlider=document.getElementById('tl-slider');
+tlSlider.addEventListener('input',()=>{
+  const h=+tlSlider.value;
+  document.getElementById('tl-dateinput').value=hariToDateStr(h);
+  updateTimeline(h);
+});
+
+// Input tanggal → update semua
+document.getElementById('tl-dateinput').addEventListener('change',function(){
+  const h=Math.max(0,Math.min(136,dateToHari(this.value)));
+  tlSlider.value=h;
+  updateTimeline(h);
+});
+
+// Tombol cepat
+function setTLDate(hari){
+  tlSlider.value=hari;
+  document.getElementById('tl-dateinput').value=hariToDateStr(hari);
+  updateTimeline(hari);
+}
+
+// Play / animasi
+let tlPlaying=false, tlTimer=null;
+document.getElementById('tl-play').onclick=function(){
+  tlPlaying=!tlPlaying;
+  this.textContent=tlPlaying?'⏸ Pause':'▶ Play';
+  this.classList.toggle('active',tlPlaying);
+  if(tlPlaying){
+    tlTimer=setInterval(()=>{
+      let v=+tlSlider.value+1;
+      if(v>TL_TOTAL){v=0;}
+      tlSlider.value=v;
+      updateTimeline(v);
+    },200);
+  } else {
+    clearInterval(tlTimer);
+  }
+};
+
+// Inisialisasi timeline
+updateTimeline(0);
 
 L.marker(EPI,{title:'Episentrum (simulasi)'}).addTo(map).bindPopup('Episentrum M 7,7 (simulasi)');
 // Lingkaran kecamatan simulasi dihapus — gunakan batas_admin.geojson yang asli
