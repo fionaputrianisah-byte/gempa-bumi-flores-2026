@@ -190,9 +190,9 @@ input[type=range].tl-slider{width:100%;accent-color:#1d5f8f;cursor:pointer}
       🛰 ANALISIS MELALUI CITRA SATELIT <span class="gee-sidebar-badge">GEE</span>
     </div>
     <label><input type="checkbox" data-l="gee_shk" checked> 🔴 Zona intensitas guncangan (MMI)</label>
-    <div style="margin-top:6px;padding:6px;background:#f0f4ff;border-radius:4px;font-size:12px;color:#1d5f8f">
-      📊 Statistik SAR + NDBI + NDVI per kecamatan ditampilkan di panel analisis bawah peta
-    </div>
+    <label><input type="checkbox" data-l="gee_coh" checked> 🟠 Titik SAR per desa (warna = tanggal)</label>
+    <label><input type="checkbox" data-l="gee_dpm"> 🟡 Titik NDBI per desa</label>
+    <label><input type="checkbox" data-l="gee_ndvi"> 🟢 Titik NDVI per desa</label>
   </div></details>
 
   <details open><summary>Cari</summary><div>
@@ -550,8 +550,19 @@ const baseSat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/
 const baseOSM=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'});
 L.control.layers({'Jalan (Esri)':baseJalan,'Citra satelit (Esri)':baseSat,'OpenStreetMap':baseOSM},null,{position:'topright'}).addTo(map);
 
-const LY={bgn:L.layerGroup().addTo(map),adm:L.layerGroup().addTo(map),kec:L.layerGroup().addTo(map),rd:L.layerGroup().addTo(map),iso:L.layerGroup().addTo(map),pos:L.layerGroup().addTo(map),
-  gee_coh:L.layerGroup().addTo(map), gee_dpm:L.layerGroup(), gee_ndvi:L.layerGroup(), gee_shk:L.layerGroup().addTo(map)};
+// Layer order: GEE layers dulu (bawah), bangunan paling atas
+const LY={
+  gee_shk:L.layerGroup().addTo(map),  // Shakemap MMI (paling bawah)
+  gee_coh:L.layerGroup().addTo(map),  // SAR desa
+  gee_dpm:L.layerGroup(),             // NDBI desa (default off)
+  gee_ndvi:L.layerGroup(),            // NDVI desa (default off)
+  adm:L.layerGroup().addTo(map),      // Batas admin
+  kec:L.layerGroup().addTo(map),      // Kecamatan
+  iso:L.layerGroup().addTo(map),      // Isolasi
+  rd:L.layerGroup().addTo(map),       // Ruas putus
+  pos:L.layerGroup().addTo(map),      // Posko
+  bgn:L.layerGroup().addTo(map),      // Bangunan RVS (paling atas)
+};
 
 /* ===== Batas Administrasi Desa (dari Shapefile asli) ===== */
 function loadBatasAdmin(){
@@ -810,6 +821,12 @@ function interpGEE(hari, baseVal, peakVal, recoveryRate=0.015){
 
 // Update tampilan berdasarkan hari terpilih
 function updateTimeline(hari){
+  // Sync slider dan input tanggal
+  const slEl=document.getElementById('tl-slider');
+  const dtEl=document.getElementById('tl-dateinput');
+  if(slEl) slEl.value=hari;
+  if(dtEl) dtEl.value=hariToDateStr(hari);
+
   const d = new Date(TL_START);
   d.setDate(d.getDate() + hari);
   const tglStr = d.toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'});
@@ -976,8 +993,8 @@ document.getElementById('tl-play').onclick=function(){
   }
 };
 
-// Inisialisasi timeline
-updateTimeline(0);
+// Inisialisasi timeline SETELAH refresh (agar panel analisis tidak tertimpa)
+updateTimeline(75); // mulai di hari gempa agar langsung terlihat perubahannya
 
 L.marker(EPI,{title:'Episentrum (simulasi)'}).addTo(map).bindPopup('Episentrum M 7,7 (simulasi)');
 // Lingkaran kecamatan simulasi dihapus — gunakan batas_admin.geojson yang asli
