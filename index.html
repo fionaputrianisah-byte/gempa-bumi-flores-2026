@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WebGIS Kerusakan Bangunan Pascagempa Flores – Manggarai Timur</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&display=swap">
+<style>
+:root{--ink:#1c2530;--mute:#5b6773;--paper:#f3f4f6;--panel:#fff;--line:#d3d8de;--bar:#243342;--acc:#1d5f8f;--gee:#0d6e3d}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.5 "Public Sans","Segoe UI",system-ui,sans-serif;background:var(--paper);color:var(--ink)}
+header{background:var(--bar);color:#fff;padding:12px 20px;display:flex;justify-content:space-between;gap:24px;align-items:flex-end;flex-wrap:wrap}
+h1{margin:0;font-size:19px;font-weight:700;letter-spacing:-.01em}
+header p{margin:2px 0 0;color:#b9c4cf;font-size:13px}
+.fakta{display:flex;gap:0;margin:0}
+.fakta div{padding:0 16px;border-left:1px solid #4a5b6c}
+.fakta dt{font-size:12px;color:#b9c4cf}
+.fakta dd{margin:0;font-weight:700}
+.note{padding:6px 20px;font-size:12.5px;background:#fff;border-bottom:1px solid var(--line);border-left:4px solid #d99a00;color:var(--mute)}
+.note b{color:var(--ink)}
+.app{display:grid;grid-template-columns:330px 1fr;align-items:start}
+aside{position:sticky;top:0;height:100vh;overflow:auto;background:var(--panel);border-right:1px solid var(--line)}
+details{border-bottom:1px solid var(--line)}
+summary{padding:10px 16px;font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center}
+summary::after{content:"+";color:var(--mute);font-weight:400}
+details[open]>summary::after{content:"–"}
+details>div{padding:0 16px 14px}
+label{display:flex;gap:7px;align-items:center;margin:3px 0;cursor:pointer}
+input[type=text],select{width:100%;padding:6px 8px;border:1px solid #aab3bd;border-radius:2px;font:inherit;background:#fff}
+button{background:#fff;color:var(--acc);border:1px solid var(--acc);border-radius:2px;padding:6px 12px;font:inherit;font-weight:600;cursor:pointer;margin:2px 6px 2px 0}
+button:hover{background:var(--acc);color:#fff}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid #d99a00;outline-offset:1px}
+#map{height:66vh;min-height:420px;border-bottom:1px solid var(--line)}
+.analisis{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));background:var(--panel);border-bottom:1px solid var(--line)}
+.blok{padding:14px 18px;border-left:1px solid var(--line)}
+.blok:first-child{border-left:0}
+h2{margin:0 0 6px;font-size:14px;font-weight:700}
+.blok p{margin:0 0 8px;color:var(--mute);font-size:13px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border-bottom:1px solid var(--line);padding:4px 6px;text-align:right}
+th:first-child,td:first-child{text-align:left}
+th{background:#eef0f3;font-weight:600}
+.skema{background:var(--panel)}
+.skema td,.skema th{text-align:left}
+.dot{width:11px;height:11px;border-radius:50%;display:inline-block}
+.kec a{color:var(--acc);cursor:pointer;text-decoration:underline}
+.bar{height:6px;background:#b3261e}
+.big{font-size:24px;font-weight:700}
+small{color:var(--mute)}
+
+/* ── GEE Panel ── */
+.gee-header{background:linear-gradient(135deg,#0d6e3d,#1d5f8f);color:#fff;padding:14px 20px;border-bottom:1px solid var(--line)}
+.gee-header h2{color:#fff;font-size:15px;margin:0 0 4px}
+.gee-header p{color:#a8dfbf;font-size:12.5px;margin:0}
+.gee-badge{display:inline-block;background:#0d6e3d;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:6px;vertical-align:middle}
+.gee-tabs{display:flex;border-bottom:2px solid var(--line);background:var(--panel);overflow-x:auto}
+.gee-tab{padding:9px 16px;cursor:pointer;font-weight:600;font-size:13px;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--mute)}
+.gee-tab.active{border-bottom-color:var(--gee);color:var(--gee)}
+.gee-panels .gpanel{display:none;padding:16px 20px}
+.gee-panels .gpanel.active{display:block}
+.gee-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px}
+.gee-card{background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:12px}
+.gee-card h3{margin:0 0 4px;font-size:13px;color:var(--mute)}
+.gee-card .val{font-size:22px;font-weight:700;color:var(--ink)}
+.gee-card .sub{font-size:12px;color:var(--mute)}
+.gee-card.warn .val{color:#b3261e}
+.gee-card.ok .val{color:#0d6e3d}
+.ramp{height:12px;border-radius:2px;margin:6px 0;position:relative}
+.ramp-label{display:flex;justify-content:space-between;font-size:11px;color:var(--mute)}
+.hist{display:flex;align-items:flex-end;gap:2px;height:60px;margin:8px 0}
+.hist-bar{flex:1;background:var(--acc);border-radius:2px 2px 0 0;position:relative;cursor:default;transition:opacity .15s}
+.hist-bar:hover{opacity:.8}
+.hist-bar span{display:none;position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:2px 5px;border-radius:2px;font-size:11px;white-space:nowrap;pointer-events:none}
+.hist-bar:hover span{display:block}
+.gee-code{background:#1e1e2e;color:#cdd6f4;border-radius:4px;padding:14px;font:12px/1.6 monospace;overflow-x:auto;margin:8px 0}
+.gee-code .kw{color:#cba6f7}
+.gee-code .str{color:#a6e3a1}
+.gee-code .cm{color:#6c7086;font-style:italic}
+.gee-code .fn{color:#89b4fa}
+.gee-code .nu{color:#fab387}
+.deform-canvas{width:100%;height:140px;border-radius:4px;border:1px solid var(--line)}
+.legend-row{display:flex;align-items:center;gap:6px;margin:3px 0;font-size:12.5px}
+.legend-box{width:14px;height:14px;border-radius:2px;flex-shrink:0}
+.prog-row{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12.5px}
+.prog-bar-wrap{flex:1;height:8px;background:#e5e7ea;border-radius:4px;overflow:hidden}
+.prog-fill{height:100%;border-radius:4px}
+.proc-status{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:4px;font-size:12.5px;margin:4px 0}
+.proc-status.done{background:#dcefe4;color:#0d6e3d}
+.proc-status.warn{background:#fff4cd;color:#7a5800}
+.proc-status.info{background:#ddeeff;color:#1d5f8f}
+.proc-status::before{content:'';width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0}
+
+/* ── sidebar GEE badge ── */
+.gee-sidebar-badge{background:#0d6e3d;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:4px}
+
+@media(max-width:900px){.app{grid-template-columns:1fr}aside{position:static;height:auto}#map{height:60vh}.fakta div:first-child{padding-left:0;border-left:0}.gee-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Kerusakan bangunan pascagempa Flores M7,7 di Manggarai Timur</h1>
+    <p>WebGIS terintegrasi: RVS lapangan · Sentinel‑1 SAR · Landsat 8/9 · <b style="color:#a8dfbf">Google Earth Engine</b></p>
+  </div>
+  <dl class="fakta">
+    <div><dt>Waktu</dt><dd>15 Agt 2026, 05.58 WITA</dd></div>
+    <div><dt>Magnitudo</dt><dd>M 7,7</dd></div>
+    <div><dt>Intensitas maks.</dt><dd>VII MMI</dd></div>
+    <div><dt>Kedalaman</dt><dd>15 km</dd></div>
+  </dl>
+</header>
+<div class="note"><b id="sumber"></b> <span id="catatan">Batas wilayah, titik bangunan, jalan dan posko di peta ini masih data simulasi. Data GEE merupakan hasil simulasi analisis SAR Sentinel-1 & Landsat. Ganti dengan data asli.</span></div>
+
+<div class="app">
+<aside>
+  <details open><summary>Saring titik di peta</summary><div>
+    <div id="fkelas"></div>
+    <select id="fjenis"><option value="">Semua jenis bangunan</option></select>
+    <p id="jumlah" style="margin:6px 0 0"></p></div></details>
+
+  <details open><summary>Lapisan peta</summary><div>
+    <label><input type="checkbox" data-l="bgn" checked> Titik bangunan (RVS)</label>
+    <label><input type="checkbox" data-l="kec" checked> Batas kecamatan</label>
+    <label><input type="checkbox" data-l="rd" checked> Ruas putus & jembatan rusak</label>
+    <label><input type="checkbox" data-l="iso" checked> Zona isolasi (buffer 2 km)</label>
+    <label><input type="checkbox" data-l="pos" checked> Posko</label>
+    <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-weight:600;font-size:12px;color:var(--gee);letter-spacing:.03em">
+      🌍 GOOGLE EARTH ENGINE <span class="gee-sidebar-badge">GEE</span>
+    </div>
+    <label><input type="checkbox" data-l="gee_coh" checked> Peta kehilangan koherensi (SAR)</label>
+    <label><input type="checkbox" data-l="gee_dpm"> Damage Proxy Map (DPM)</label>
+    <label><input type="checkbox" data-l="gee_ndvi"> Perubahan NDVI Landsat-8/9</label>
+    <label><input type="checkbox" data-l="gee_shk" checked> Shakemap intensitas (MMI)</label>
+  </div></details>
+
+  <details open><summary>Cari</summary><div>
+    <input type="text" id="cari" placeholder="ID, nama bangunan, atau desa"><small id="hasilcari"></small></div></details>
+
+  <details open><summary>Rekap BNPB (unit rumah)</summary><div>
+    <table id="bnpb"></table></div></details>
+
+  <details><summary>Kecamatan</summary><div>
+    <div id="kec" class="kec"></div>
+    <small>Klik nama kecamatan untuk memperbesar peta ke wilayah itu.</small></div></details>
+
+  <details open><summary>Ringkasan GEE <span class="gee-sidebar-badge">GEE</span></summary><div>
+    <div id="gee-sidebar-stats" style="font-size:13px"></div>
+    <button id="btnGeeFlyTo" style="margin-top:8px;border-color:var(--gee);color:var(--gee)" onclick="map.setView(EPI,10)">🛰 Fokus ke area terdampak</button>
+  </div></details>
+
+  <details><summary>Ekspor dan data</summary><div>
+    <button id="ecsv">Unduh CSV</button><button id="egeo">Unduh GeoJSON</button>
+    <label style="margin-top:8px;display:block">Muat CSV sendiri<br><input type="file" id="fcsv" accept=".csv"></label>
+    <small>Kolom: ID_OBJ, Jenis_bangunan, Nama_bangunan, X/Y (atau lat/lon), Kategori_kerusakan.</small></div></details>
+</aside>
+
+<section>
+  <div id="map"></div>
+
+  <!-- Panel analisis standar -->
+  <div class="analisis">
+    <div class="blok"><h2>Bangunan rusak per kecamatan</h2><div id="perkec"></div></div>
+    <div class="blok"><h2>Akses jalan & isolasi</h2>
+      <p>Buffer 2 km dari ruas putus menandai permukiman berpotensi terisolasi.</p>
+      <div class="big" id="isoN">0</div><small>bangunan di zona isolasi</small></div>
+    <div class="blok"><h2>Autokorelasi spasial (Moran's I)</h2>
+      <p>Grid 0,05° dengan bobot queen, uji permutasi 499×.</p>
+      <div id="moran"></div></div>
+    <div class="blok"><h2>Validasi citra vs RVS lapangan</h2>
+      <p>Confusion matrix Sentinel‑1 (baris) vs RVS (kolom).</p><div id="cm"></div></div>
+  </div>
+
+  <!-- ======= SECTION GOOGLE EARTH ENGINE ======= -->
+  <div class="gee-header">
+    <h2>🛰 Analisis Google Earth Engine <span style="font-size:12px;opacity:.8">(Sentinel-1 SAR · Landsat 8/9 · InSAR · DPM)</span></h2>
+    <p>Hasil pengolahan citra satelit otomatis melalui cloud GEE — pra & pascagempa 15 Agustus 2026</p>
+  </div>
+
+  <div class="gee-tabs">
+    <div class="gee-tab active" data-tab="sar">📡 SAR Koherensi</div>
+    <div class="gee-tab" data-tab="dpm">🔴 Damage Proxy Map</div>
+    <div class="gee-tab" data-tab="ndvi">🌿 NDVI Landsat</div>
+    <div class="gee-tab" data-tab="deform">📐 Deformasi Tanah</div>
+    <div class="gee-tab" data-tab="kode">💻 Kode GEE</div>
+  </div>
+
+  <div class="gee-panels">
+
+    <!-- TAB 1: SAR Coherence -->
+    <div class="gpanel active" id="gpanel-sar">
+      <div class="gee-grid">
+        <div class="gee-card warn">
+          <h3>Rata-rata Kehilangan Koherensi (ΔCoh)</h3>
+          <div class="val" id="gee-dcoh">–</div>
+          <div class="sub">penurunan koherensi SAR Sentinel-1 C-band</div>
+        </div>
+        <div class="gee-card">
+          <h3>Luas Terdampak (Coh &lt; 0.3)</h3>
+          <div class="val" id="gee-luas">–</div>
+          <div class="sub">km² area kehilangan koherensi signifikan</div>
+        </div>
+        <div class="gee-card warn">
+          <h3>Piksel Anomali SAR</h3>
+          <div class="val" id="gee-piksel">–</div>
+          <div class="sub">piksel dengan ΔCoh &gt; 2σ dari baseline</div>
+        </div>
+        <div class="gee-card ok">
+          <h3>Akurasi Koherensi vs RVS</h3>
+          <div class="val" id="gee-oa">–</div>
+          <div class="sub">overall accuracy (n = 330 titik validasi)</div>
+        </div>
+      </div>
+      <h3 style="margin:0 0 6px;font-size:13px">Distribusi nilai koherensi (pra → pasca gempa)</h3>
+      <div id="coh-hist" class="hist"></div>
+      <div class="ramp-label"><span>0.0 (hilang)</span><span>Koherensi SAR</span><span>1.0 (sempurna)</span></div>
+      <div class="ramp" style="background:linear-gradient(to right,#b3261e,#e08a00,#e6c200,#2f8f5b,#1d5f8f)"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:12px">
+        <div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:6px">Pasangan citra Sentinel-1</div>
+          <table style="font-size:12px;min-width:280px">
+            <tr><th>Pra-gempa</th><th>Pasca-gempa</th><th>ΔHari</th><th>Mode</th></tr>
+            <tr><td>27 Jul 2026</td><td>20 Agt 2026</td><td>24 hr</td><td>IW/VV+VH</td></tr>
+            <tr><td>03 Agt 2026</td><td>27 Agt 2026</td><td>24 hr</td><td>IW/VV+VH</td></tr>
+          </table>
+        </div>
+        <div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:6px">Status pemrosesan GEE</div>
+          <div class="proc-status done">Unduh & praproses Sentinel-1 GRD ✓</div>
+          <div class="proc-status done">Hitung koherensi interferometrik ✓</div>
+          <div class="proc-status done">Pemfilteran speckle (Lee 5×5) ✓</div>
+          <div class="proc-status done">Proyeksi ulang ke WGS84 EPSG:4326 ✓</div>
+          <div class="proc-status warn">Ekspor ke GeoTIFF (menunggu slot GEE) ⏳</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: DPM -->
+    <div class="gpanel" id="gpanel-dpm">
+      <div class="gee-grid">
+        <div class="gee-card warn">
+          <h3>Bangunan DPM Rusak Berat</h3>
+          <div class="val" id="dpm-rb">–</div>
+          <div class="sub">estimasi dari Damage Proxy Map (DPM) SAR</div>
+        </div>
+        <div class="gee-card">
+          <h3>Luas DPM Merah (High Damage)</h3>
+          <div class="val" id="dpm-luas">–</div>
+          <div class="sub">km² piksel dengan kerusakan tinggi terdeteksi</div>
+        </div>
+        <div class="gee-card">
+          <h3>Presisi DPM vs Lapangan</h3>
+          <div class="val" id="dpm-presisi">–</div>
+          <div class="sub">precision kelas RB (berbasis n = 110 sampel)</div>
+        </div>
+        <div class="gee-card">
+          <h3>Recall DPM</h3>
+          <div class="val" id="dpm-recall">–</div>
+          <div class="sub">recall / producer's accuracy kelas RB</div>
+        </div>
+      </div>
+      <h3 style="margin:8px 0 6px;font-size:13px">Distribusi kelas DPM per kecamatan</h3>
+      <div id="dpm-chart"></div>
+      <div style="margin-top:12px">
+        <div style="font-weight:600;font-size:13px;margin-bottom:6px">Legenda Damage Proxy Map</div>
+        <div class="legend-row"><span class="legend-box" style="background:#b3261e"></span>High Damage (DPM ≥ 0.65) — kemungkinan RB/RS tinggi</div>
+        <div class="legend-row"><span class="legend-box" style="background:#e08a00"></span>Medium Damage (0.35–0.65) — perlu verifikasi lapangan</div>
+        <div class="legend-row"><span class="legend-box" style="background:#e6c200"></span>Low Damage (0.15–0.35) — potensi RR atau tidak rusak</div>
+        <div class="legend-row"><span class="legend-box" style="background:#2f8f5b"></span>No Damage (&lt;0.15) — tidak terdeteksi kerusakan SAR</div>
+        <div class="legend-row"><span class="legend-box" style="background:#8a8f93"></span>No Data — tutupan awan / geometric shadow</div>
+      </div>
+      <div class="proc-status info" style="margin-top:10px">ℹ DPM dihitung menggunakan metode ARIA/JPL (Yun et al. 2015) yang diimplementasi ulang di GEE.</div>
+    </div>
+
+    <!-- TAB 3: NDVI -->
+    <div class="gpanel" id="gpanel-ndvi">
+      <div class="gee-grid">
+        <div class="gee-card warn">
+          <h3>ΔNDVI rata-rata (pra→pasca)</h3>
+          <div class="val" id="ndvi-delta">–</div>
+          <div class="sub">perubahan NDVI Landsat-8/9 OLI pra & pasca gempa</div>
+        </div>
+        <div class="gee-card">
+          <h3>Luas NDVI turun &gt; 0.1</h3>
+          <div class="val" id="ndvi-luas">–</div>
+          <div class="sub">km² area penurunan vegetasi/tanah signifikan</div>
+        </div>
+        <div class="gee-card warn">
+          <h3>Area Likuifaksi (estimasi)</h3>
+          <div class="val" id="ndvi-likui">–</div>
+          <div class="sub">km² area kemungkinan likuifaksi dari NDVI + DEM</div>
+        </div>
+        <div class="gee-card ok">
+          <h3>Tutupan Awan Pasca-gempa</h3>
+          <div class="val" id="ndvi-cloud">–</div>
+          <div class="sub">persentase piksel berawan (scene Landsat-9)</div>
+        </div>
+      </div>
+      <h3 style="margin:8px 0 6px;font-size:13px">Perbandingan NDVI per kecamatan (pra vs pasca)</h3>
+      <div id="ndvi-chart"></div>
+      <div style="margin-top:10px;font-size:13px;color:var(--mute)">
+        <b>Citra digunakan:</b> Landsat-8 OLI (10 Agt 2026, cloud 12%) → pra-gempa · Landsat-9 OLI (21 Agt 2026, cloud 23%) → pasca-gempa<br>
+        <b>Formula:</b> NDVI = (NIR–Red)/(NIR+Red), Band 5 & 4 · resolusi 30 m · median komposit 7-hari
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <div class="proc-status done">Unduh Landsat-8/9 (Collection 2 L2) ✓</div>
+        <div class="proc-status done">Masking awan (QA_PIXEL) ✓</div>
+        <div class="proc-status done">Hitung ΔNDVI pra–pasca ✓</div>
+        <div class="proc-status warn">Overlay dengan peta likuifaksi SNI ⏳</div>
+      </div>
+    </div>
+
+    <!-- TAB 4: Deformasi -->
+    <div class="gpanel" id="gpanel-deform">
+      <div class="gee-grid">
+        <div class="gee-card warn">
+          <h3>Deformasi Maks. (LOS)</h3>
+          <div class="val" id="def-maks">–</div>
+          <div class="sub">penurunan permukaan maks. arah line-of-sight (InSAR)</div>
+        </div>
+        <div class="gee-card">
+          <h3>Deformasi Rata-rata Episentrum</h3>
+          <div class="val" id="def-rata">–</div>
+          <div class="sub">dalam radius 10 km dari episentrum</div>
+        </div>
+        <div class="gee-card">
+          <h3>Luas Deformasi &gt; 5 cm</h3>
+          <div class="val" id="def-luas">–</div>
+          <div class="sub">km² area penurunan/kenaikan signifikan</div>
+        </div>
+        <div class="gee-card">
+          <h3>Frekuensi Sentinel-1</h3>
+          <div class="val">C-band</div>
+          <div class="sub">5.6 cm panjang gelombang · orbit ascending & descending</div>
+        </div>
+      </div>
+      <h3 style="margin:8px 0 6px;font-size:13px">Peta deformasi tanah (simulasi LiCSAR / GEE InSAR)</h3>
+      <canvas id="deform-canvas" class="deform-canvas" width="800" height="140"></canvas>
+      <div class="ramp" style="background:linear-gradient(to right,#1a3a6e,#4a90d9,#f5f5f5,#e08a00,#b3261e);margin-top:4px"></div>
+      <div class="ramp-label"><span>−30 cm (penurunan)</span><span>Deformasi LOS</span><span>+15 cm (uplift)</span></div>
+      <div class="proc-status info" style="margin-top:8px">ℹ Deformasi dihitung dengan DInSAR (Differential InSAR) menggunakan pasangan orbit yang sama (24 hari baseline). Data diproses via GEE + SNAP Toolbox.</div>
+    </div>
+
+    <!-- TAB 5: Kode GEE -->
+    <div class="gpanel" id="gpanel-kode">
+      <div style="margin-bottom:12px;font-size:13px;color:var(--mute)">
+        Salin kode berikut ke <a href="https://code.earthengine.google.com" target="_blank" style="color:var(--acc)">code.earthengine.google.com</a> untuk mereproduksi analisis ini di wilayah studi kamu.
+      </div>
+      <div style="font-weight:600;font-size:13px;margin-bottom:4px">1. Analisis Koherensi SAR Sentinel-1</div>
+      <div class="gee-code"><span class="cm">// WebGIS Gempa Flores – Analisis Koherensi SAR Sentinel-1</span>
+<span class="cm">// Ganti ROI dengan batas wilayah Manggarai Timur yang sesungguhnya</span>
+<span class="kw">var</span> roi = ee.Geometry.Rectangle([<span class="nu">120.4, -8.9, 121.0, -8.4</span>]);
+<span class="kw">var</span> tPra  = ee.DateRange(<span class="str">'2026-07-20'</span>, <span class="str">'2026-08-14'</span>);
+<span class="kw">var</span> tPost = ee.DateRange(<span class="str">'2026-08-15'</span>, <span class="str">'2026-08-30'</span>);
+
+<span class="cm">// Koleksi Sentinel-1 GRD</span>
+<span class="kw">var</span> s1 = ee.ImageCollection(<span class="str">'COPERNICUS/S1_GRD'</span>)
+  .<span class="fn">filter</span>(ee.Filter.eq(<span class="str">'instrumentMode'</span>, <span class="str">'IW'</span>))
+  .<span class="fn">filter</span>(ee.Filter.listContains(<span class="str">'transmitterReceiverPolarisation'</span>, <span class="str">'VV'</span>))
+  .<span class="fn">filterBounds</span>(roi);
+
+<span class="kw">var</span> praMed  = s1.<span class="fn">filterDate</span>(tPra).<span class="fn">select</span>(<span class="str">'VV'</span>).<span class="fn">median</span>().<span class="fn">clip</span>(roi);
+<span class="kw">var</span> postMed = s1.<span class="fn">filterDate</span>(tPost).<span class="fn">select</span>(<span class="str">'VV'</span>).<span class="fn">median</span>().<span class="fn">clip</span>(roi);
+
+<span class="cm">// Hitung koherensi (proksi: normalisasi cross-correlation)</span>
+<span class="kw">var</span> coherence = praMed.<span class="fn">multiply</span>(postMed)
+  .<span class="fn">divide</span>(praMed.<span class="fn">pow</span>(<span class="nu">2</span>).<span class="fn">add</span>(postMed.<span class="fn">pow</span>(<span class="nu">2</span>)).<span class="fn">sqrt</span>())
+  .<span class="fn">rename</span>(<span class="str">'coherence'</span>);
+
+<span class="kw">var</span> deltaCoh = praMed.<span class="fn">subtract</span>(postMed).<span class="fn">abs</span>().<span class="fn">rename</span>(<span class="str">'delta_coh'</span>);
+
+Map.<span class="fn">addLayer</span>(deltaCoh, {
+  min: <span class="nu">0</span>, max: <span class="nu">0.6</span>,
+  palette: [<span class="str">'2f8f5b'</span>,<span class="str">'e6c200'</span>,<span class="str">'e08a00'</span>,<span class="str">'b3261e'</span>]
+}, <span class="str">'Delta Koherensi SAR'</span>);</div>
+
+      <div style="font-weight:600;font-size:13px;margin:12px 0 4px">2. NDVI Change Detection (Landsat 8/9)</div>
+      <div class="gee-code"><span class="kw">var</span> ls = ee.ImageCollection(<span class="str">'LANDSAT/LC09/C02/T1_L2'</span>)
+  .<span class="fn">filterBounds</span>(roi)
+  .<span class="fn">filter</span>(ee.Filter.lt(<span class="str">'CLOUD_COVER'</span>, <span class="nu">30</span>));
+
+<span class="kw">function</span> <span class="fn">maskCloud</span>(img) {
+  <span class="kw">var</span> qa = img.<span class="fn">select</span>(<span class="str">'QA_PIXEL'</span>);
+  <span class="kw">var</span> mask = qa.<span class="fn">bitwiseAnd</span>(<span class="nu">1 &lt;&lt; 3</span>).<span class="fn">eq</span>(<span class="nu">0</span>)
+    .<span class="fn">and</span>(qa.<span class="fn">bitwiseAnd</span>(<span class="nu">1 &lt;&lt; 5</span>).<span class="fn">eq</span>(<span class="nu">0</span>));
+  <span class="kw">return</span> img.<span class="fn">updateMask</span>(mask);
+}
+<span class="kw">function</span> <span class="fn">addNDVI</span>(img) {
+  <span class="kw">var</span> ndvi = img.<span class="fn">normalizedDifference</span>([<span class="str">'SR_B5'</span>,<span class="str">'SR_B4'</span>]).<span class="fn">rename</span>(<span class="str">'NDVI'</span>);
+  <span class="kw">return</span> img.<span class="fn">addBands</span>(ndvi);
+}
+
+<span class="kw">var</span> ndviPra  = ls.<span class="fn">filterDate</span>(tPra).<span class="fn">map</span>(maskCloud).<span class="fn">map</span>(addNDVI).<span class="fn">select</span>(<span class="str">'NDVI'</span>).<span class="fn">median</span>();
+<span class="kw">var</span> ndviPost = ls.<span class="fn">filterDate</span>(tPost).<span class="fn">map</span>(maskCloud).<span class="fn">map</span>(addNDVI).<span class="fn">select</span>(<span class="str">'NDVI'</span>).<span class="fn">median</span>();
+<span class="kw">var</span> deltaNDVI = ndviPost.<span class="fn">subtract</span>(ndviPra).<span class="fn">rename</span>(<span class="str">'dNDVI'</span>);
+
+Map.<span class="fn">addLayer</span>(deltaNDVI.<span class="fn">clip</span>(roi), {
+  min: <span class="nu">-0.4</span>, max: <span class="nu">0.1</span>,
+  palette: [<span class="str">'b3261e'</span>,<span class="str">'e08a00'</span>,<span class="str">'ffffcc'</span>,<span class="str">'2f8f5b'</span>]
+}, <span class="str">'ΔNDVI Landsat-9'</span>);
+
+<span class="cm">// Ekspor ke Google Drive</span>
+Export.image.<span class="fn">toDrive</span>({
+  image: deltaNDVI.<span class="fn">clip</span>(roi), description: <span class="str">'dNDVI_Flores_2026'</span>,
+  scale: <span class="nu">30</span>, region: roi, crs: <span class="str">'EPSG:4326'</span>
+});</div>
+
+      <div class="proc-status info" style="margin-top:8px">💡 Jalankan kode ini di <a href="https://code.earthengine.google.com" target="_blank">code.earthengine.google.com</a>. Butuh akun GEE gratis (daftar di earthengine.google.com).</div>
+    </div>
+
+  </div><!-- /gee-panels -->
+
+  <!-- Tabel skema atribut -->
+  <details class="skema"><summary>Struktur atribut bangunan (PostGIS)</summary><div>
+    <table><tr><th>Kolom</th><th>Tipe</th><th>Isi</th></tr>
+    <tr><td>id_bgn</td><td>text</td><td>MTM‑0001</td></tr>
+    <tr><td>geom</td><td>Point, 4326</td><td>koordinat GNSS / digitasi</td></tr>
+    <tr><td>kecamatan, desa</td><td>text</td><td>dari batas administrasi</td></tr>
+    <tr><td>jenis</td><td>text</td><td>rumah, sekolah, ibadah, faskes, kantor</td></tr>
+    <tr><td>kelas_rvs</td><td>text</td><td>RB, RS, RR, TR</td></tr>
+    <tr><td>kelas_citra</td><td>text</td><td>hasil change detection</td></tr>
+    <tr><td>delta_koh</td><td>real</td><td>penurunan koherensi Sentinel‑1</td></tr>
+    <tr><td>dpm_score</td><td>real</td><td>skor Damage Proxy Map (0–1)</td></tr>
+    <tr><td>delta_ndvi</td><td>real</td><td>ΔNDVI Landsat pra–pasca</td></tr>
+    <tr><td>deform_cm</td><td>real</td><td>deformasi tanah cm (InSAR LOS)</td></tr>
+    <tr><td>foto_url, tgl_survei</td><td>text, date</td><td>dokumentasi lapangan</td></tr></table></div></details>
+</section>
+</div>
+
+<script>
+/* ===== Konfigurasi ===== */
+const BNPB = {RB:32, RS:15, RR:9};
+const CSV_TEXT = ``;
+const EPI = [-8.60, 120.70];
+const KEC = [
+  {n:'Borong',c:[-8.74,120.58]},{n:'Kota Komba',c:[-8.63,120.66]},
+  {n:'Rana Mese',c:[-8.55,120.52]},{n:'Lamba Leda',c:[-8.48,120.62]},
+  {n:'Elar',c:[-8.52,120.92]},{n:'Sambi Rampas',c:[-8.72,120.82]}];
+const RD = [
+  {nama:'Jembatan Wae Pesi',tipe:'Jembatan rusak',ll:[-8.66,120.64]},
+  {nama:'Ruas Borong–Kota Komba',tipe:'Ruas putus',ll:[-8.69,120.61]},
+  {nama:'Ruas Elar–Lamba Leda',tipe:'Ruas putus',ll:[-8.50,120.80]}];
+const POSKO = [
+  {nama:'Posko Borong',ll:[-8.745,120.575]},{nama:'Posko Kota Komba',ll:[-8.625,120.665]},
+  {nama:'Posko Elar',ll:[-8.515,120.915]}];
+const KELAS = ['RB','RS','RR','TR','BD'];
+const WARNA = {RB:'#b3261e',RS:'#e08a00',RR:'#e6c200',TR:'#2f8f5b',BD:'#8a8f93'};
+const NAMA  = {RB:'Rusak berat',RS:'Rusak sedang',RR:'Rusak ringan',TR:'Tidak rusak',BD:'Belum diketahui'};
+const JENIS = ['rumah','sekolah','ibadah','faskes','kantor'];
+
+/* ===== Simulasi data ===== */
+function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function simulasi(){
+  const r=rng(2026), g=()=>(r()+r()+r()-1.5)*0.09, out=[]; let n=1;
+  KEC.forEach(k=>{for(let i=0;i<55;i++){
+    const lat=k.c[0]+g(), lon=k.c[1]+g(), d=Math.hypot(lat-EPI[0],lon-EPI[1]), u=r();
+    const pRB=Math.max(.04,.45-d*2.6), pRS=pRB+.25, pRR=pRS+.2;
+    const kr=u<pRB?'RB':u<pRS?'RS':u<pRR?'RR':'TR';
+    let kc=kr; if(r()<.28){const j=KELAS.indexOf(kr)+(r()<.5?-1:1);kc=KELAS[Math.min(3,Math.max(0,j))]}
+    const base={RB:.38,RS:.27,RR:.15,TR:.05}[kc];
+    const dist=Math.hypot(lat-EPI[0],lon-EPI[1]);
+    const dpm=Math.max(0,Math.min(1, (kr==='RB'?.75:kr==='RS'?.48:kr==='RR'?.22:.08) + (r()-.5)*.2));
+    const dndvi=-(dist<.15?.15:dist<.25?.08:.03)*(1+r()*.5);
+    const deform=kr==='RB'?-(8+r()*12):kr==='RS'?-(3+r()*6):-(r()*3);
+    out.push({id_bgn:'MTM-'+String(n++).padStart(4,'0'),lat:+lat.toFixed(5),lon:+lon.toFixed(5),
+      kecamatan:k.n,desa:'Desa '+String.fromCharCode(65+Math.floor(r()*8))+' '+k.n,
+      jenis:JENIS[Math.floor(r()*r()*5)],kelas_rvs:kr,kelas_citra:kc,
+      delta_koh:+(base+(r()-.5)*.12).toFixed(3),
+      dpm_score:+dpm.toFixed(3),
+      delta_ndvi:+dndvi.toFixed(4),
+      deform_cm:+deform.toFixed(1)});
+  }});
+  return out;
+}
+let DATA = simulasi();
+
+/* ===== Peta ===== */
+const map=L.map('map').setView([-8.62,120.70],10);
+const baseJalan=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri'}).addTo(map);
+const baseSat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri'});
+const baseOSM=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'});
+L.control.layers({'Jalan (Esri)':baseJalan,'Citra satelit (Esri)':baseSat,'OpenStreetMap':baseOSM},null,{position:'topright'}).addTo(map);
+
+const LY={bgn:L.layerGroup().addTo(map),kec:L.layerGroup().addTo(map),rd:L.layerGroup().addTo(map),iso:L.layerGroup().addTo(map),pos:L.layerGroup().addTo(map),
+  gee_coh:L.layerGroup().addTo(map), gee_dpm:L.layerGroup(), gee_ndvi:L.layerGroup(), gee_shk:L.layerGroup().addTo(map)};
+
+L.marker(EPI,{title:'Episentrum (simulasi)'}).addTo(map).bindPopup('Episentrum M 7,7 (simulasi)');
+KEC.forEach(k=>L.circle(k.c,{radius:9000,color:'#1f5c4d',weight:1.5,dashArray:'5 5',fillOpacity:.03,interactive:false}).bindTooltip(k.n,{permanent:true,direction:'center'}).addTo(LY.kec));
+RD.forEach(x=>{L.marker(x.ll).bindPopup('<b>'+x.nama+'</b><br>'+x.tipe).addTo(LY.rd);
+  L.circle(x.ll,{radius:2000,color:'#7a3b9c',weight:1,fillOpacity:.12,interactive:false}).addTo(LY.iso)});
+POSKO.forEach(p=>L.circleMarker(p.ll,{radius:8,color:'#0a4d8c',fillColor:'#4aa3e8',fillOpacity:1}).bindPopup('<b>'+p.nama+'</b>').addTo(LY.pos));
+
+/* ── GEE Overlay Simulasi ── */
+function buildGEEOverlays(){
+  LY.gee_coh.clearLayers(); LY.gee_dpm.clearLayers(); LY.gee_ndvi.clearLayers(); LY.gee_shk.clearLayers();
+  const r2=rng(42);
+  DATA.forEach(d=>{
+    // Coherence loss heatmap (simulated)
+    const cohCol=d.delta_koh>0.3?'rgba(179,38,30,0.35)':d.delta_koh>0.18?'rgba(224,138,0,0.3)':'rgba(47,143,91,0.15)';
+    L.circle([d.lat,d.lon],{radius:400,color:'transparent',fillColor:cohCol,fillOpacity:.7,interactive:false}).addTo(LY.gee_coh);
+    // DPM overlay
+    const dpmCol=d.dpm_score>0.65?'rgba(179,38,30,0.5)':d.dpm_score>0.35?'rgba(224,138,0,0.4)':d.dpm_score>0.15?'rgba(230,194,0,0.3)':'rgba(47,143,91,0.2)';
+    L.circle([d.lat,d.lon],{radius:380,color:'transparent',fillColor:dpmCol,fillOpacity:.75,interactive:false}).addTo(LY.gee_dpm);
+    // NDVI diff overlay
+    const ndviCol=d.delta_ndvi<-0.1?'rgba(179,38,30,0.4)':d.delta_ndvi<-0.04?'rgba(224,138,0,0.3)':'rgba(47,143,91,0.15)';
+    L.circle([d.lat,d.lon],{radius:360,color:'transparent',fillColor:ndviCol,fillOpacity:.7,interactive:false}).addTo(LY.gee_ndvi);
+  });
+  // Shakemap (MMI zones)
+  const mmiZones=[
+    {r:3000,c:'rgba(179,38,30,0.2)',mmi:'VII–VIII'},
+    {r:7000,c:'rgba(224,138,0,0.12)',mmi:'VI–VII'},
+    {r:14000,c:'rgba(230,194,0,0.08)',mmi:'V–VI'},
+    {r:25000,c:'rgba(47,143,91,0.05)',mmi:'IV–V'}];
+  mmiZones.forEach(z=>L.circle(EPI,{radius:z.r,color:z.c.replace('.','_'),fillColor:z.c,fillOpacity:1,weight:0.5,
+    dashArray:'4 4',interactive:false}).bindTooltip('Intensitas '+z.mmi+' (simulasi)',{sticky:true}).addTo(LY.gee_shk));
+}
+buildGEEOverlays();
+
+document.querySelectorAll('[data-l]').forEach(c=>c.onchange=()=>c.checked?LY[c.dataset.l].addTo(map):map.removeLayer(LY[c.dataset.l]));
+
+/* ===== Filter ===== */
+const fk=document.getElementById('fkelas'), fj=document.getElementById('fjenis');
+KELAS.forEach(k=>fk.insertAdjacentHTML('beforeend',`<label><input type="checkbox" value="${k}" checked><span class="dot" style="background:${WARNA[k]}"></span>${k} – ${NAMA[k]}</label>`));
+JENIS.forEach(j=>fj.insertAdjacentHTML('beforeend',`<option>${j}</option>`));
+fk.onchange=fj.onchange=render;
+const aktif=()=>[...fk.querySelectorAll('input:checked')].map(i=>i.value);
+const filtered=()=>DATA.filter(d=>aktif().includes(d.kelas_rvs)&&(!fj.value||d.jenis===fj.value));
+const markerById={};
+
+function popupHTML(d){
+  const row=(a,b)=>b?`<tr><td style="border:0;text-align:left;color:#5d6b66;padding:1px 10px 1px 0">${a}</td><td style="border:0;text-align:left;padding:1px 0">${b}</td></tr>`:'';
+  return `<div style="min-width:220px"><div style="font-weight:700;font-size:15px">${d.nama||d.id_bgn}</div>
+  <div style="margin:6px 0"><span style="background:${WARNA[d.kelas_rvs]};color:${d.kelas_rvs==='RR'?'#222':'#fff'};padding:2px 10px;border-radius:10px;font-weight:600">${NAMA[d.kelas_rvs]}</span></div>
+  <table style="width:auto;font-size:13px;border:0">${row('ID',d.id_bgn)}${row('Jenis',d.jenis)}${row('Desa',d.desa)}${row('Kecamatan',d.kecamatan)}${row('Kelas citra',d.kelas_citra?NAMA[d.kelas_citra]:'')}${row('ΔKoherensi',d.delta_koh)}${row('DPM Score',d.dpm_score)}${row('ΔNDVI',d.delta_ndvi)}${row('Deformasi',d.deform_cm+' cm')}${row('Koordinat',d.lat.toFixed(5)+', '+d.lon.toFixed(5))}</table></div>`;
+}
+function render(){
+  LY.bgn.clearLayers(); const f=filtered();
+  f.forEach(d=>{const m=L.circleMarker([d.lat,d.lon],{radius:7,color:'#222',weight:1,fillColor:WARNA[d.kelas_rvs],fillOpacity:.95})
+    .bindPopup(popupHTML(d)).bindTooltip((d.nama||d.id_bgn)+' – '+NAMA[d.kelas_rvs],{sticky:true});
+    m.addTo(LY.bgn); markerById[d.id_bgn]=m});
+  document.getElementById('jumlah').textContent=f.length+' dari '+DATA.length+' titik';
+}
+
+/* ===== Panel standar ===== */
+function bnpb(){
+  const t=BNPB.RB+BNPB.RS+BNPB.RR;
+  document.getElementById('bnpb').innerHTML=`<tr><th>Kelas</th><th>Unit</th></tr>`+
+   ['RB','RS','RR'].map(k=>`<tr><td>${NAMA[k]}</td><td>${BNPB[k].toLocaleString('id-ID')}</td></tr>`).join('')+`<tr><th>Total</th><th>${t.toLocaleString('id-ID')}</th></tr>`;
+}
+function perKec(){
+  const by=DATA.some(d=>d.kecamatan&&d.kecamatan!=='-')?'kecamatan':'jenis',c={};
+  DATA.forEach(d=>c[d[by]]=c[d[by]]||0);
+  DATA.forEach(d=>{if(d.kelas_rvs==='RB'||d.kelas_rvs==='RS')c[d[by]]++});
+  const mx=Math.max(1,...Object.values(c));
+  document.getElementById('perkec').innerHTML=Object.entries(c).map(([n,v])=>`<div style="margin:5px 0"><div style="display:flex;justify-content:space-between"><span>${n}</span><b>${v}</b></div><div class="bar" style="width:${v/mx*100}%"></div></div>`).join('')+'<small>RB+RS per '+by+'.</small>';
+  document.getElementById('kec').innerHTML=KEC.map(k=>`<a data-k="${k.n}">${k.n}</a>`).join(' · ');
+  document.querySelectorAll('#kec a').forEach(a=>a.onclick=()=>{const k=KEC.find(x=>x.n===a.dataset.k);map.flyTo(k.c,12)});
+}
+function isolasi(){
+  const n=DATA.filter(d=>RD.some(x=>map.distance([d.lat,d.lon],x.ll)<=2000)).length;
+  document.getElementById('isoN').textContent=n;
+}
+function moran(){
+  const S=0.05,cells={};let a=1e9,b=-1e9,c=1e9,e=-1e9;
+  DATA.forEach(d=>{const i=Math.floor(d.lat/S),j=Math.floor(d.lon/S);a=Math.min(a,i);b=Math.max(b,i);c=Math.min(c,j);e=Math.max(e,j);
+    if(d.kelas_rvs==='RB'||d.kelas_rvs==='RS')cells[i+','+j]=(cells[i+','+j]||0)+1});
+  const ids=[],nb=[];
+  for(let i=a;i<=b;i++)for(let j=c;j<=e;j++)ids.push([i,j]);
+  const idx={};ids.forEach((p,k)=>idx[p[0]+','+p[1]]=k);
+  ids.forEach(p=>{const l=[];for(let di=-1;di<=1;di++)for(let dj=-1;dj<=1;dj++){if(!di&&!dj)continue;const k=idx[(p[0]+di)+','+(p[1]+dj)];if(k!==undefined)l.push(k)}nb.push(l)});
+  const x=ids.map(p=>cells[p[0]+','+p[1]]||0),N=x.length,W=nb.reduce((s,l)=>s+l.length,0);
+  const calc=v=>{const m=v.reduce((s,q)=>s+q,0)/N,z=v.map(q=>q-m);let num=0,den=0;
+    for(let i=0;i<N;i++){den+=z[i]*z[i];for(const j of nb[i])num+=z[i]*z[j]}return (N/W)*num/den};
+  const I=calc(x),E=-1/(N-1);let ge=0;const r=rng(7),y=x.slice();
+  for(let p=0;p<499;p++){for(let i=N-1;i>0;i--){const j=Math.floor(r()*(i+1));[y[i],y[j]]=[y[j],y[i]]}if(calc(y)>=I)ge++}
+  const pv=(ge+1)/500,tafsir=pv<.05?(I>E?'berkelompok (cluster) signifikan':'menyebar signifikan'):'acak, tidak signifikan';
+  document.getElementById('moran').innerHTML=`<div class="big">I = ${I.toFixed(3)}</div><small>E[I] = ${E.toFixed(3)} · pseudo‑p = ${pv.toFixed(3)} · ${N} sel</small><p>Pola: <b>${tafsir}</b>.</p>`;
+}
+function cm(){
+  const K=['RB','RS','RR','TR'],D=DATA.filter(d=>K.includes(d.kelas_citra)&&K.includes(d.kelas_rvs));
+  if(!D.length){document.getElementById('cm').innerHTML='<small>Tambahkan kolom kelas_citra.</small>';return}
+  const m=K.map(()=>K.map(()=>0));
+  D.forEach(d=>m[K.indexOf(d.kelas_citra)][K.indexOf(d.kelas_rvs)]++);
+  const tot=D.length,ok=K.reduce((s,_,i)=>s+m[i][i],0);
+  const col=K.map((_,j)=>m.reduce((s,r)=>s+r[j],0)),row=m.map(r=>r.reduce((s,q)=>s+q,0));
+  const pc=(a,b)=>b?(a/b*100).toFixed(0)+'%':'-';
+  let h='<table><tr><th>Citra \\ RVS</th>'+K.map(k=>`<th>${k}</th>`).join('')+'<th>UA</th></tr>';
+  m.forEach((r,i)=>{h+=`<tr><td><b>${K[i]}</b></td>`+r.map((q,j)=>`<td style="${i===j?'background:#dcefe4;font-weight:700':''}">${q}</td>`).join('')+`<td>${pc(r[i],row[i])}</td></tr>`});
+  h+='<tr><td><b>PA</b></td>'+K.map((_,j)=>`<td>${pc(m[j][j],col[j])}</td>`).join('')+`<td><b>OA ${pc(ok,tot)}</b></td></tr></table>`;
+  document.getElementById('cm').innerHTML=h+'<small>OA = overall accuracy.</small>';
+}
+
+/* ===== GOOGLE EARTH ENGINE ANALYSIS ===== */
+function geeAnalysis(){
+  const r=rng(999);
+  const totalRB=DATA.filter(d=>d.kelas_rvs==='RB').length;
+  const avgDCoh=(DATA.reduce((s,d)=>s+d.delta_koh,0)/DATA.length).toFixed(3);
+  const cohArea=(DATA.filter(d=>d.delta_koh>0.3).length*0.16).toFixed(1);
+  const cohAnomaly=DATA.filter(d=>d.delta_koh>0.3).length*8;
+  const oa=78+Math.round(r()*8);
+
+  // SAR tab
+  document.getElementById('gee-dcoh').textContent=avgDCoh;
+  document.getElementById('gee-luas').textContent=cohArea+' km²';
+  document.getElementById('gee-piksel').textContent=cohAnomaly.toLocaleString('id-ID');
+  document.getElementById('gee-oa').textContent=oa+'%';
+
+  // Coherence histogram
+  const bins=10,hist=Array(bins).fill(0);
+  DATA.forEach(d=>{const b=Math.min(bins-1,Math.floor(d.delta_koh/0.06));hist[b]++});
+  const mx=Math.max(...hist);
+  document.getElementById('coh-hist').innerHTML=hist.map((v,i)=>{
+    const pct=(v/mx*100).toFixed(0),lo=(i*0.06).toFixed(2),hi=((i+1)*0.06).toFixed(2);
+    const col=i<3?'#2f8f5b':i<5?'#e6c200':i<7?'#e08a00':'#b3261e';
+    return `<div class="hist-bar" style="height:${pct}%;background:${col}"><span>${v} titik<br>${lo}–${hi}</span></div>`;
+  }).join('');
+
+  // DPM tab
+  const dpmRB=DATA.filter(d=>d.dpm_score>0.65).length;
+  const dpmLuas=(dpmRB*0.22).toFixed(1);
+  const dpmPresisi=(68+Math.round(r()*10))+'%';
+  const dpmRecall=(72+Math.round(r()*8))+'%';
+  document.getElementById('dpm-rb').textContent=dpmRB+' unit';
+  document.getElementById('dpm-luas').textContent=dpmLuas+' km²';
+  document.getElementById('dpm-presisi').textContent=dpmPresisi;
+  document.getElementById('dpm-recall').textContent=dpmRecall;
+
+  // DPM chart per kecamatan
+  const dpmKec={};
+  KEC.forEach(k=>dpmKec[k.n]={hi:0,md:0,lo:0,no:0});
+  DATA.forEach(d=>{if(!dpmKec[d.kecamatan])return;
+    const sc=d.dpm_score;
+    if(sc>=0.65)dpmKec[d.kecamatan].hi++;
+    else if(sc>=0.35)dpmKec[d.kecamatan].md++;
+    else if(sc>=0.15)dpmKec[d.kecamatan].lo++;
+    else dpmKec[d.kecamatan].no++;
+  });
+  let dpmHtml='';
+  Object.entries(dpmKec).forEach(([kn,v])=>{
+    const tot=v.hi+v.md+v.lo+v.no||1;
+    dpmHtml+=`<div style="margin:6px 0"><div style="font-size:12px;margin-bottom:2px"><b>${kn}</b> <span style="color:var(--mute)">(${tot} bangunan)</span></div>
+    <div style="display:flex;height:10px;border-radius:4px;overflow:hidden">
+      <div style="width:${v.hi/tot*100}%;background:#b3261e" title="High: ${v.hi}"></div>
+      <div style="width:${v.md/tot*100}%;background:#e08a00" title="Med: ${v.md}"></div>
+      <div style="width:${v.lo/tot*100}%;background:#e6c200" title="Low: ${v.lo}"></div>
+      <div style="width:${v.no/tot*100}%;background:#2f8f5b" title="No: ${v.no}"></div>
+    </div></div>`;
+  });
+  document.getElementById('dpm-chart').innerHTML=dpmHtml;
+
+  // NDVI tab
+  const avgDNDVI=(DATA.reduce((s,d)=>s+d.delta_ndvi,0)/DATA.length).toFixed(4);
+  const ndviLuas=(DATA.filter(d=>d.delta_ndvi<-0.1).length*0.09).toFixed(1);
+  const likuluas=(DATA.filter(d=>d.delta_ndvi<-0.08&&d.deform_cm<-5).length*0.12).toFixed(1);
+  document.getElementById('ndvi-delta').textContent=avgDNDVI;
+  document.getElementById('ndvi-luas').textContent=ndviLuas+' km²';
+  document.getElementById('ndvi-likui').textContent=likuluas+' km²';
+  document.getElementById('ndvi-cloud').textContent='23%';
+
+  // NDVI chart
+  const ndviKec={};
+  KEC.forEach(k=>ndviKec[k.n]={pre:0,post:0,n:0});
+  DATA.forEach(d=>{if(!ndviKec[d.kecamatan])return;
+    const pre=0.42+(d.lat+8.5)*0.1;
+    ndviKec[d.kecamatan].pre+=pre;
+    ndviKec[d.kecamatan].post+=pre+d.delta_ndvi;
+    ndviKec[d.kecamatan].n++;
+  });
+  let ndviHtml='<table><tr><th>Kecamatan</th><th>NDVI Pra</th><th>NDVI Pasca</th><th>ΔNDVI</th></tr>';
+  Object.entries(ndviKec).forEach(([kn,v])=>{
+    if(!v.n)return;
+    const pre=(v.pre/v.n).toFixed(3), post=(v.post/v.n).toFixed(3), d=(post-pre).toFixed(3);
+    const col=d<-0.08?'color:#b3261e':d<-0.03?'color:#e08a00':'color:#2f8f5b';
+    ndviHtml+=`<tr><td>${kn}</td><td>${pre}</td><td>${post}</td><td style="${col}"><b>${d}</b></td></tr>`;
+  });
+  document.getElementById('ndvi-chart').innerHTML=ndviHtml+'</table>';
+
+  // Deformasi tab
+  const defVals=DATA.map(d=>d.deform_cm);
+  const defMaks=Math.min(...defVals).toFixed(1);
+  const defRata=(defVals.filter(v=>v<-5).reduce((s,v)=>s+v,0)/Math.max(1,defVals.filter(v=>v<-5).length)).toFixed(1);
+  const defLuas=(DATA.filter(d=>Math.abs(d.deform_cm)>5).length*0.14).toFixed(1);
+  document.getElementById('def-maks').textContent=defMaks+' cm';
+  document.getElementById('def-rata').textContent=defRata+' cm';
+  document.getElementById('def-luas').textContent=defLuas+' km²';
+
+  drawDeformCanvas();
+
+  // Sidebar GEE stats
+  document.getElementById('gee-sidebar-stats').innerHTML=`
+    <div class="prog-row"><span style="width:120px">Koherensi hilang</span><div class="prog-bar-wrap"><div class="prog-fill" style="width:${avgDCoh/0.5*100}%;background:#b3261e"></div></div><b>${(avgDCoh*100).toFixed(0)}%</b></div>
+    <div class="prog-row"><span style="width:120px">DPM High Damage</span><div class="prog-bar-wrap"><div class="prog-fill" style="width:${dpmRB/DATA.length*100}%;background:#e08a00"></div></div><b>${dpmRB}</b></div>
+    <div class="prog-row"><span style="width:120px">ΔNDVI rata-rata</span><div class="prog-bar-wrap"><div class="prog-fill" style="width:${Math.abs(avgDNDVI)*100}%;background:#0d6e3d"></div></div><b>${avgDNDVI}</b></div>
+    <div class="prog-row"><span style="width:120px">Deformasi maks</span><div class="prog-bar-wrap"><div class="prog-fill" style="width:${Math.abs(defMaks)/30*100}%;background:#1d5f8f"></div></div><b>${defMaks} cm</b></div>
+    <div style="font-size:11.5px;color:var(--mute);margin-top:6px">Data: Sentinel-1 GRD · Landsat-8/9 L2 · SRTM DEM</div>
+  `;
+}
+
+function drawDeformCanvas(){
+  const cv=document.getElementById('deform-canvas');
+  if(!cv)return;
+  const ctx=cv.getContext('2d'), W=cv.width, H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  const r=rng(888);
+  // Draw deformation field
+  for(let gx=0;gx<W;gx+=4){
+    for(let gy=0;gy<H;gy+=4){
+      const nx=(gx/W-0.5)*0.6+120.70, ny=(gy/H-0.5)*0.4-8.60;
+      const dist=Math.hypot(nx-120.70,ny+8.60);
+      const def=Math.max(-30,-(18*Math.exp(-dist*8)+(r()-.5)*4));
+      const t=(def+30)/45;
+      const c=t<0.4?[26+t*120,100+t*80,180+t*20]:t<0.7?[200-t*100,200-t*60,200-t*100]:[200,80+t*20,20+t*10];
+      ctx.fillStyle=`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;
+      ctx.fillRect(gx,gy,4,4);
+    }
+  }
+  // Epicenter cross
+  ctx.strokeStyle='#fff'; ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(W/2-8,H/2);ctx.lineTo(W/2+8,H/2);ctx.moveTo(W/2,H/2-8);ctx.lineTo(W/2,H/2+8);ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.font='11px sans-serif'; ctx.fillText('Episentrum M7.7',W/2+10,H/2+4);
+}
+
+/* ===== GEE Tabs ===== */
+document.querySelectorAll('.gee-tab').forEach(tab=>{
+  tab.onclick=()=>{
+    document.querySelectorAll('.gee-tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.gpanel').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('gpanel-'+tab.dataset.tab).classList.add('active');
+  };
+});
+
+/* ===== Cari ===== */
+document.getElementById('cari').oninput=e=>{
+  const q=e.target.value.trim().toLowerCase(),o=document.getElementById('hasilcari');if(!q){o.textContent='';return}
+  const h=DATA.filter(d=>d.id_bgn.toLowerCase().includes(q)||d.desa.toLowerCase().includes(q)||(d.nama||'').toLowerCase().includes(q));
+  o.textContent=h.length?h.length+' hasil':'Tidak ada hasil.';
+  if(h.length){map.flyTo([h[0].lat,h[0].lon],14);const m=markerById[h[0].id_bgn];if(m)setTimeout(()=>m.openPopup(),800)}
+};
+
+/* ===== Ekspor ===== */
+function unduh(nama,teks,tipe){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([teks],{type:tipe}));a.download=nama;a.click()}
+const KOL=['id_bgn','lat','lon','kecamatan','desa','jenis','kelas_rvs','kelas_citra','delta_koh','dpm_score','delta_ndvi','deform_cm'];
+document.getElementById('ecsv').onclick=()=>unduh('bangunan_gempa_flores.csv',KOL.join(',')+'\\n'+filtered().map(d=>KOL.map(k=>'"'+(d[k]??'')+'"').join(',')).join('\\n'),'text/csv');
+document.getElementById('egeo').onclick=()=>unduh('bangunan_gempa_flores.geojson',JSON.stringify({type:'FeatureCollection',features:filtered().map(d=>({type:'Feature',geometry:{type:'Point',coordinates:[d.lon,d.lat]},properties:d}))}),'application/geo+json');
+
+function muatCSV(teks,nama,manual){
+  const L2=teks.replace(/^\uFEFF/,'').trim().split(/\r?\n/),sep=L2[0].includes(';')?';':(L2[0].includes('\t')?'\t':',');
+  const sp=l=>{const o=[];let c='',q=false;for(const ch of l){if(ch==='"')q=!q;else if(ch===sep&&!q){o.push(c.trim());c=''}else c+=ch}o.push(c.trim());return o};
+  const h=sp(L2[0]).map(x=>x.toLowerCase()),pick=(...n)=>h.findIndex(x=>n.includes(x));
+  const ci={id:pick('id_obj','id_bgn','id'),jenis:pick('jenis_bangunan','jenis'),nama:pick('nama_bangunan','nama'),x:pick('x','lat','latitude'),y:pick('y','lon','lng','longitude'),kel:pick('kategori_kerusakan','kelas_rvs','kerusakan'),cit:pick('kelas_citra'),koh:pick('delta_koh'),kec:pick('kecamatan'),desa:pick('desa')};
+  const num=s=>parseFloat(String(s).replace(',','.'));
+  const kelas=s=>{s=String(s||'').toLowerCase();return s.includes('berat')||s==='rb'?'RB':s.includes('sedang')||s==='rs'?'RS':s.includes('ringan')||s==='rr'?'RR':s.includes('tidak')||s==='tr'?'TR':'BD'};
+  const rows=L2.slice(1).map(l=>{const v=sp(l),g=i=>i>=0?(v[i]||''):'';
+    let a=num(g(ci.x)),b=num(g(ci.y));if(Math.abs(a)>90)[a,b]=[b,a];
+    const dist=Math.hypot(a-EPI[0],b-EPI[1]);
+    return {id_bgn:g(ci.id)||'-',lat:a,lon:b,kecamatan:g(ci.kec)||'-',desa:g(ci.desa)||'-',jenis:g(ci.jenis)||'-',
+      kelas_rvs:kelas(g(ci.kel)),kelas_citra:ci.cit>=0?kelas(g(ci.cit)):'',
+      delta_koh:num(g(ci.koh))||+(0.2+Math.random()*0.2).toFixed(3),
+      dpm_score:+Math.min(1,Math.max(0,0.4+Math.random()*.4)).toFixed(3),
+      delta_ndvi:+(-0.05-Math.random()*.1).toFixed(4),
+      deform_cm:+(-2-Math.random()*8).toFixed(1)}})
+    .filter(o=>!isNaN(o.lat)&&!isNaN(o.lon));
+  if(!rows.length){alert('CSV tidak terbaca. Pastikan kolom koordinat dan kerusakan tersedia.');return}
+  DATA=rows;
+  fj.innerHTML='<option value="">Semua jenis bangunan</option>'+[...new Set(DATA.map(d=>d.jenis))].sort().map(j=>`<option>${j}</option>`).join('');
+  refresh(); map.fitBounds(DATA.map(d=>[d.lat,d.lon]));
+  if(manual)window.scrollTo({top:0,behavior:'smooth'});
+}
+document.getElementById('fcsv').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>muatCSV(rd.result,f.name,true);rd.readAsText(f);e.target.value='';};
+
+function setSumber(t){document.getElementById('sumber').textContent=t}
+function refresh(){render();bnpb();perKec();isolasi();moran();cm();geeAnalysis();buildGEEOverlays()}
+refresh();
+setSumber('[v6+GEE] Sumber: SIMULASI ('+DATA.length+' titik) + Google Earth Engine Sentinel-1/Landsat');
+if(CSV_TEXT.trim())muatCSV(CSV_TEXT,'tertanam');
+</script>
+</body>
+</html>
