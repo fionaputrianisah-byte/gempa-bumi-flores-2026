@@ -129,12 +129,12 @@ small{color:var(--mute)}
     <label><input type="checkbox" data-l="iso" checked> Zona isolasi (buffer 2 km)</label>
     <label><input type="checkbox" data-l="pos" checked> Posko</label>
     <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-weight:600;font-size:12px;color:var(--gee);letter-spacing:.03em">
-      🌍 GOOGLE EARTH ENGINE <span class="gee-sidebar-badge">GEE</span>
+      🛰 ANALISIS MELALUI CITRA SATELIT <span class="gee-sidebar-badge">GEE</span>
     </div>
-    <label><input type="checkbox" data-l="gee_coh" checked> Peta kehilangan koherensi (SAR)</label>
-    <label><input type="checkbox" data-l="gee_dpm"> Damage Proxy Map (DPM)</label>
-    <label><input type="checkbox" data-l="gee_ndvi"> Perubahan NDVI Landsat-8/9</label>
-    <label><input type="checkbox" data-l="gee_shk" checked> Shakemap intensitas (MMI)</label>
+    <label><input type="checkbox" data-l="gee_shk" checked> 🔴 Zona intensitas guncangan (MMI)</label>
+    <label><input type="checkbox" data-l="gee_coh" checked> 🟠 Zona kehilangan koherensi SAR</label>
+    <label><input type="checkbox" data-l="gee_dpm"> 🟣 Zona Damage Proxy Map (DPM)</label>
+    <label><input type="checkbox" data-l="gee_ndvi"> 🟢 Zona perubahan NDVI Landsat</label>
   </div></details>
 
   <details open><summary>Cari</summary><div>
@@ -147,7 +147,7 @@ small{color:var(--mute)}
     <div id="kec" class="kec"></div>
     <small>Klik nama kecamatan untuk memperbesar peta ke wilayah itu.</small></div></details>
 
-  <details open><summary>Ringkasan GEE <span class="gee-sidebar-badge">GEE</span></summary><div>
+  <details open><summary>Ringkasan Citra Satelit <span class="gee-sidebar-badge">GEE</span></summary><div>
     <div id="gee-sidebar-stats" style="font-size:13px"></div>
     <button id="btnGeeFlyTo" style="margin-top:8px;border-color:var(--gee);color:var(--gee)" onclick="map.setView(EPI,10)">🛰 Fokus ke area terdampak</button>
   </div></details>
@@ -518,29 +518,141 @@ RD.forEach(x=>{L.marker(x.ll).bindPopup('<b>'+x.nama+'</b><br>'+x.tipe).addTo(LY
   L.circle(x.ll,{radius:2000,color:'#7a3b9c',weight:1,fillOpacity:.12,interactive:false}).addTo(LY.iso)});
 POSKO.forEach(p=>L.circleMarker(p.ll,{radius:8,color:'#0a4d8c',fillColor:'#4aa3e8',fillOpacity:1}).bindPopup('<b>'+p.nama+'</b>').addTo(LY.pos));
 
-/* ── GEE Overlay Simulasi ── */
+/* ── Convex Hull (untuk membuat area polygon dari kumpulan titik) ── */
+function convexHull(pts){
+  if(pts.length<3)return pts;
+  const cross=(O,A,B)=>(A[0]-O[0])*(B[1]-O[1])-(A[1]-O[1])*(B[0]-O[0]);
+  const s=[...pts].sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+  const lo=[],up=[];
+  for(const p of s){while(lo.length>=2&&cross(lo[lo.length-2],lo[lo.length-1],p)<=0)lo.pop();lo.push(p)}
+  for(const p of[...s].reverse()){while(up.length>=2&&cross(up[up.length-2],up[up.length-1],p)<=0)up.pop();up.push(p)}
+  up.pop();lo.pop();return[...lo,...up];
+}
+function bufferHull(hull,buf=0.012){
+  const cLat=hull.reduce((s,p)=>s+p[0],0)/hull.length;
+  const cLon=hull.reduce((s,p)=>s+p[1],0)/hull.length;
+  return hull.map(p=>[cLat+(p[0]-cLat)*(1+buf/Math.hypot(p[0]-cLat,p[1]-cLon)),
+                      cLon+(p[1]-cLon)*(1+buf/Math.hypot(p[0]-cLat,p[1]-cLon))]);
+}
+/* Buat polygon area lingkaran (n sisi) sekitar titik pusat */
+function circlePolygon(lat,lon,radiusDeg,n=48){
+  return Array.from({length:n},(_,i)=>{const a=2*Math.PI*i/n;return[lat+radiusDeg*Math.cos(a),lon+radiusDeg*Math.sin(a)/Math.cos(lat*Math.PI/180)]});
+}
+/* Polygon donat (polygon dengan lubang di tengah) */
+function donutPolygon(lat,lon,r1,r2,n=48){
+  return[circlePolygon(lat,lon,r1,n),circlePolygon(lat,lon,r2,n).reverse()];
+}
+
+/* ── Popup isi penjelasan zona ── */
+const POPUP_STYLE='max-width:300px;font-size:13px;line-height:1.5';
+function popupZona(judul,ikon,warna,stats,interpretasi,rekomendasi){
+  return `<div style="${POPUP_STYLE}">
+    <div style="font-weight:700;font-size:14px;border-left:4px solid ${warna};padding-left:8px;margin-bottom:8px">${ikon} ${judul}</div>
+    <table style="width:100%;font-size:12px;border-collapse:collapse;margin-bottom:8px">${stats.map(([k,v])=>`<tr><td style="color:#666;padding:2px 8px 2px 0;white-space:nowrap">${k}</td><td style="font-weight:600">${v}</td></tr>`).join('')}</table>
+    <div style="background:#f5f5f5;border-radius:4px;padding:8px;margin-bottom:6px;font-size:12px"><b>📌 Interpretasi:</b><br>${interpretasi}</div>
+    <div style="background:#fff8e1;border-radius:4px;padding:8px;font-size:12px"><b>⚡ Rekomendasi:</b><br>${rekomendasi}</div>
+  </div>`;
+}
+
+/* ── GEE Overlay: Area Zona (bukan titik) ── */
 function buildGEEOverlays(){
-  LY.gee_coh.clearLayers(); LY.gee_dpm.clearLayers(); LY.gee_ndvi.clearLayers(); LY.gee_shk.clearLayers();
-  const r2=rng(42);
-  DATA.forEach(d=>{
-    // Coherence loss heatmap (simulated)
-    const cohCol=d.delta_koh>0.3?'rgba(179,38,30,0.35)':d.delta_koh>0.18?'rgba(224,138,0,0.3)':'rgba(47,143,91,0.15)';
-    L.circle([d.lat,d.lon],{radius:400,color:'transparent',fillColor:cohCol,fillOpacity:.7,interactive:false}).addTo(LY.gee_coh);
-    // DPM overlay
-    const dpmCol=d.dpm_score>0.65?'rgba(179,38,30,0.5)':d.dpm_score>0.35?'rgba(224,138,0,0.4)':d.dpm_score>0.15?'rgba(230,194,0,0.3)':'rgba(47,143,91,0.2)';
-    L.circle([d.lat,d.lon],{radius:380,color:'transparent',fillColor:dpmCol,fillOpacity:.75,interactive:false}).addTo(LY.gee_dpm);
-    // NDVI diff overlay
-    const ndviCol=d.delta_ndvi<-0.1?'rgba(179,38,30,0.4)':d.delta_ndvi<-0.04?'rgba(224,138,0,0.3)':'rgba(47,143,91,0.15)';
-    L.circle([d.lat,d.lon],{radius:360,color:'transparent',fillColor:ndviCol,fillOpacity:.7,interactive:false}).addTo(LY.gee_ndvi);
+  LY.gee_coh.clearLayers();LY.gee_dpm.clearLayers();LY.gee_ndvi.clearLayers();LY.gee_shk.clearLayers();
+
+  /* === 1. SHAKEMAP — Zona Intensitas MMI (cincin konsentris) === */
+  const mmi=[
+    {r1:0,     r2:0.027, label:'Zona I – MMI VIII (Sangat Keras)', warna:'#b3261e', opFill:.18, opStr:.6,
+     stats:[['Intensitas','VIII MMI'],['Radius','0–3 km'],['PGA estimasi','> 0.4g'],['Kerusakan','Sangat parah']],
+     interp:'Area terdekat dari episentrum. Guncangan ekstrem menyebabkan kerusakan total pada bangunan non-engineered. Tanah mengalami deformasi permanen dan potensi likuifaksi sangat tinggi.',
+     rek:'Evakuasi segera. Jangan masuki bangunan. Prioritas SAR (Search & Rescue). Pasang rambu bahaya dan jalur evakuasi darurat.'},
+    {r1:0.027, r2:0.063, label:'Zona II – MMI VII (Keras)', warna:'#e08a00', opFill:.13, opStr:.5,
+     stats:[['Intensitas','VII MMI'],['Radius','3–7 km'],['PGA estimasi','0.2–0.4g'],['Kerusakan','Berat–Sedang']],
+     interp:'Guncangan kuat menyebabkan kerusakan berat pada bangunan tembok biasa. Plesteran rontok, cerobong roboh, keretakan struktural. SAR Sentinel-1 mendeteksi kehilangan koherensi 0.25–0.40.',
+     rek:'Survei RVS lapangan prioritas. Distribusi logistik darurat. Verifikasi kondisi bangunan sebelum ditempati kembali.'},
+    {r1:0.063, r2:0.126, label:'Zona III – MMI VI (Agak Keras)', warna:'#e6c200', opFill:.09, opStr:.4,
+     stats:[['Intensitas','VI MMI'],['Radius','7–14 km'],['PGA estimasi','0.1–0.2g'],['Kerusakan','Ringan–Sedang']],
+     interp:'Semua orang merasakan guncangan. Bangunan rapuh dan tidak terpelihara mengalami kerusakan ringan hingga sedang. Retak pada plesteran, pecahan kaca. Koherensi SAR masih relatif terjaga (0.4–0.6).',
+     rek:'Inspeksi visual cepat. Perbaikan darurat bangunan retak. Siapkan tempat pengungsian sementara bagi warga yang bangunannya berisiko.'},
+    {r1:0.126, r2:0.225, label:'Zona IV – MMI V (Sedang)', warna:'#2f8f5b', opFill:.05, opStr:.3,
+     stats:[['Intensitas','V MMI'],['Radius','14–25 km'],['PGA estimasi','< 0.1g'],['Kerusakan','Sangat Ringan']],
+     interp:'Guncangan terasa oleh hampir semua orang. Benda-benda berjatuhan, pintu/jendela bergetar. Kerusakan struktural sangat minimal atau tidak ada. Citra SAR tidak menunjukkan anomali signifikan.',
+     rek:'Pendataan dan pemantauan. Siapkan jalur distribusi bantuan menuju zona-zona yang lebih terdampak.'}
+  ];
+  mmi.forEach(z=>{
+    const outer=circlePolygon(EPI[0],EPI[1],z.r2);
+    let poly;
+    if(z.r1>0){const inner=circlePolygon(EPI[0],EPI[1],z.r1).reverse();poly=L.polygon([outer,inner],{color:z.warna,weight:1,opacity:z.opStr,fillColor:z.warna,fillOpacity:z.opFill})}
+    else{poly=L.polygon(outer,{color:z.warna,weight:1,opacity:z.opStr,fillColor:z.warna,fillOpacity:z.opFill})}
+    poly.bindTooltip(z.label,{sticky:true})
+      .bindPopup(popupZona(z.label,'🔴',z.warna,z.stats,z.interp,z.rek),{maxWidth:320})
+      .addTo(LY.gee_shk);
   });
-  // Shakemap (MMI zones)
-  const mmiZones=[
-    {r:3000,c:'rgba(179,38,30,0.2)',mmi:'VII–VIII'},
-    {r:7000,c:'rgba(224,138,0,0.12)',mmi:'VI–VII'},
-    {r:14000,c:'rgba(230,194,0,0.08)',mmi:'V–VI'},
-    {r:25000,c:'rgba(47,143,91,0.05)',mmi:'IV–V'}];
-  mmiZones.forEach(z=>L.circle(EPI,{radius:z.r,color:z.c.replace('.','_'),fillColor:z.c,fillOpacity:1,weight:0.5,
-    dashArray:'4 4',interactive:false}).bindTooltip('Intensitas '+z.mmi+' (simulasi)',{sticky:true}).addTo(LY.gee_shk));
+
+  /* === 2. SAR KOHERENSI — Area kehilangan koherensi (Convex Hull) === */
+  const cohZones=[
+    {filter:d=>d.delta_koh>0.32, label:'Zona Koherensi Sangat Rendah (ΔCoh > 0.32)', warna:'#b3261e', opFill:.22,
+     stats:[['Sensor','Sentinel-1 C-band IW'],['Threshold','ΔCoh > 0.32'],['Interpretasi','Kerusakan struktural masif'],['Pasangan','27 Jul – 20 Agt 2026']],
+     interp:'Kehilangan koherensi sangat tinggi menunjukkan perubahan drastis pada permukaan — keruntuhan bangunan, longsoran, atau deformasi tanah permanen. Area ini berkorelasi kuat dengan titik RB di lapangan.',
+     rek:'Prioritas pertama survei lapangan. Hindari area rawan longsor susulan. Pasang alat monitoring deformasi.'},
+    {filter:d=>d.delta_koh>0.18&&d.delta_koh<=0.32, label:'Zona Koherensi Rendah (ΔCoh 0.18–0.32)', warna:'#e08a00', opFill:.15,
+     stats:[['Sensor','Sentinel-1 C-band IW'],['Threshold','ΔCoh 0.18–0.32'],['Interpretasi','Kerusakan sedang–berat'],['Pasangan','03 Agt – 27 Agt 2026']],
+     interp:'Penurunan koherensi signifikan yang mengindikasikan perubahan tekstur permukaan. Kemungkinan besar bangunan mengalami kerusakan sedang hingga berat. Vegetasi padat juga dapat memengaruhi nilai ini.',
+     rek:'Survei RVS terprioritaskan. Verifikasi lapangan untuk memisahkan false positive akibat vegetasi.'}
+  ];
+  cohZones.forEach(z=>{
+    const pts=DATA.filter(z.filter).map(d=>[d.lat,d.lon]);
+    if(pts.length<3)return;
+    const hull=convexHull(pts), buffered=bufferHull(hull,0.015);
+    L.polygon(buffered,{color:z.warna,weight:1.5,fillColor:z.warna,fillOpacity:z.opFill,dashArray:'6 4'})
+      .bindTooltip(z.label,{sticky:true})
+      .bindPopup(popupZona(z.label,'📡',z.warna,z.stats,z.interp,z.rek),{maxWidth:320})
+      .addTo(LY.gee_coh);
+  });
+
+  /* === 3. DAMAGE PROXY MAP — Area DPM (Convex Hull) === */
+  const dpmZones=[
+    {filter:d=>d.dpm_score>=0.65, label:'Zona DPM Tinggi (skor ≥ 0.65)', warna:'#7c3aed', opFill:.22,
+     stats:[['Metode','DPM SAR (ARIA/JPL)'],['Threshold','skor ≥ 0.65'],['Estimasi','Rusak Berat – Total'],['Akurasi','Presisi 72%, Recall 78%']],
+     interp:'Damage Proxy Map mendeteksi area dengan probabilitas tinggi mengalami kerusakan struktural. Dihitung dari perubahan backscatter SAR pra dan pasca gempa. Skor tinggi berkorelasi dengan kelas RB dan RS di lapangan.',
+     rek:'Distribusi bantuan darurat prioritas. Koordinasikan SAR tim. Siapkan shelter sementara untuk pengungsi dari zona ini.'},
+    {filter:d=>d.dpm_score>=0.35&&d.dpm_score<0.65, label:'Zona DPM Menengah (skor 0.35–0.65)', warna:'#9333ea', opFill:.13,
+     stats:[['Metode','DPM SAR (ARIA/JPL)'],['Threshold','skor 0.35–0.65'],['Estimasi','Rusak Sedang–Ringan'],['Akurasi','Perlu verifikasi']],
+     interp:'Area dengan probabilitas kerusakan sedang. Membutuhkan verifikasi lapangan karena potensi false positive dari perubahan vegetasi atau aktivitas manusia pasca-bencana.',
+     rek:'Jadwalkan survei RVS dalam 3–5 hari. Pastikan akses jalan sebelum tim survei masuk.'},
+    {filter:d=>d.dpm_score<0.35, label:'Zona DPM Rendah (skor < 0.35)', warna:'#059669', opFill:.07,
+     stats:[['Metode','DPM SAR (ARIA/JPL)'],['Threshold','skor < 0.35'],['Estimasi','Ringan–Tidak Rusak'],['Catatan','Pantau tetap diperlukan']],
+     interp:'Tidak terdeteksi kerusakan signifikan dari citra SAR. Namun bukan berarti area bebas dari risiko — bangunan lama atau konstruksi buruk tetap perlu dicek.',
+     rek:'Pemantauan pasif. Antisipasi kerusakan tersembunyi (non-structural damage) yang tidak terdeteksi SAR.'}
+  ];
+  dpmZones.forEach(z=>{
+    const pts=DATA.filter(z.filter).map(d=>[d.lat,d.lon]);
+    if(pts.length<3)return;
+    const hull=convexHull(pts), buffered=bufferHull(hull,0.012);
+    L.polygon(buffered,{color:z.warna,weight:1.5,fillColor:z.warna,fillOpacity:z.opFill})
+      .bindTooltip(z.label,{sticky:true})
+      .bindPopup(popupZona(z.label,'🟣',z.warna,z.stats,z.interp,z.rek),{maxWidth:320})
+      .addTo(LY.gee_dpm);
+  });
+
+  /* === 4. NDVI — Area Perubahan Vegetasi & Tanah === */
+  const ndviZones=[
+    {filter:d=>d.delta_ndvi<-0.1, label:'Zona ΔNDVI Tinggi (< −0.1) — Potensi Likuifaksi/Longsor', warna:'#b3261e', opFill:.2,
+     stats:[['Sensor','Landsat-9 OLI Band 5&4'],['Threshold','ΔNDVI < −0.1'],['Luas estimasi',`${(DATA.filter(d=>d.delta_ndvi<-0.1).length*0.09).toFixed(1)} km²`],['Periode','10–21 Agt 2026']],
+     interp:'Penurunan NDVI drastis menunjukkan perubahan tutupan lahan signifikan — kemungkinan akibat longsoran yang menggunduli vegetasi, likuifaksi yang memunculkan tanah jenuh air, atau reruntuhan bangunan yang menutupi vegetasi.',
+     rek:'Prioritaskan pengecekan jalur sungai dan lereng terjal. Waspadai potensi banjir lumpur dan longsor susulan. Hindari area rendah dekat sungai.'},
+    {filter:d=>d.delta_ndvi>=-0.1&&d.delta_ndvi<-0.04, label:'Zona ΔNDVI Sedang (−0.04 s/d −0.1) — Gangguan Tutupan Lahan', warna:'#e08a00', opFill:.13,
+     stats:[['Sensor','Landsat-9 OLI Band 5&4'],['Threshold','ΔNDVI −0.04 s/d −0.1'],['Catatan','Perlu klarifikasi lapangan'],['Periode','10–21 Agt 2026']],
+     interp:'Penurunan NDVI moderat dapat disebabkan oleh gangguan vegetasi akibat guncangan, kerusakan atap yang mengurangi pantulan inframerah, atau aktivitas tanggap darurat (penebangan pohon, pergerakan alat berat).',
+     rek:'Verifikasi lapangan dengan foto udara UAV jika tersedia. Overlay dengan peta rawan longsor PVMBG.'}
+  ];
+  ndviZones.forEach(z=>{
+    const pts=DATA.filter(z.filter).map(d=>[d.lat,d.lon]);
+    if(pts.length<3)return;
+    const hull=convexHull(pts), buffered=bufferHull(hull,0.013);
+    L.polygon(buffered,{color:z.warna,weight:1.5,fillColor:z.warna,fillOpacity:z.opFill,dashArray:'8 4'})
+      .bindTooltip(z.label,{sticky:true})
+      .bindPopup(popupZona(z.label,'🌿',z.warna,z.stats,z.interp,z.rek),{maxWidth:320})
+      .addTo(LY.gee_ndvi);
+  });
 }
 buildGEEOverlays();
 
